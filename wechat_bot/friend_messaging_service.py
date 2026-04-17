@@ -8,9 +8,6 @@ import random
 import re
 import threading
 import time
-import types
-import importlib.util
-import sys
 import traceback
 import uuid
 from pathlib import Path
@@ -86,7 +83,7 @@ def _normalize_names(raw_names: list[str]) -> list[str]:
 
 
 def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[FriendProfile]:
-    """把 pyweixin/pywechat 返回的原始字典整理为统一好友资料结构。"""
+    """把 pyweixin 返回的原始字典整理为统一好友资料结构。"""
     profiles: list[FriendProfile] = []
     seen: set[tuple[str, str]] = set()
     skip_names = {"服务号", "公众号"}
@@ -116,37 +113,6 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
         )
     profiles.sort(key=lambda item: item.get("display_name", ""))
     return profiles
-
-
-def _load_pywechat_contacts_class() -> type[Any]:
-    """按需加载旧版 `pywechat.WechatAuto.Contacts`，避免触发包级副作用。"""
-    repo_root = Path(__file__).resolve().parents[1]
-    pkg_dir = repo_root / "pywechat"
-    if not pkg_dir.exists():
-        raise FileNotFoundError(f"未找到pywechat目录: {pkg_dir}")
-
-    pkg_name = "pywechat"
-    if pkg_name not in sys.modules:
-        pkg = types.ModuleType(pkg_name)
-        pkg.__path__ = [str(pkg_dir)]  # type: ignore[attr-defined]
-        pkg.__package__ = pkg_name
-        sys.modules[pkg_name] = pkg
-
-    module_name = "pywechat.WechatAuto"
-    module = sys.modules.get(module_name)
-    if module is None:
-        module_path = pkg_dir / "WechatAuto.py"
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"无法加载模块: {module_name} -> {module_path}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-    contacts = getattr(module, "Contacts", None)
-    if contacts is None:
-        raise ImportError("pywechat.WechatAuto 中不存在 Contacts")
-    return contacts
-
 
 def _fetch_names_from_session_items() -> list[str]:
     """从主窗口会话列表项的 `automation_id` 回退提取好友名称。"""
@@ -209,53 +175,10 @@ def fetch_friend_names(
             _save_friend_name_cache(names, wxid=wxid_key)
             emit(f"好友与头像已同步到: {avatar_dir} (wxid={wxid_key})")
             return names
-        emit("pyweixin通讯录解析为空，尝试pywechat接口")
+        emit("pyweixin通讯录解析为空，回退会话列表")
     except Exception as exc:
-        emit(f"pyweixin通讯录获取失败，尝试pywechat接口: {exc}")
+        emit(f"pyweixin通讯录获取失败，回退会话列表: {exc}")
         emit(traceback.format_exc())
-
-    # pywechat(3.9) 仅适配 32 位场景，64 位 + 微信4.x 下跳过，避免无效报错日志。
-    should_try_pywechat = sys.maxsize != 2**63 - 1
-    if not should_try_pywechat:
-        emit("检测到64位环境（微信4.x），跳过pywechat兼容分支")
-    else:
-        try:
-            LegacyContacts = _load_pywechat_contacts_class()
-
-            legacy_detail = LegacyContacts.get_friends_detail(is_json=False, is_maximize=False, close_wechat=False)
-            raw_legacy_names: list[str] = []
-            if isinstance(legacy_detail, list):
-                for item in legacy_detail:
-                    if not isinstance(item, dict):
-                        continue
-                    remark = str(item.get("备注", "")).strip()
-                    nickname = str(item.get("昵称", "")).strip()
-                    raw_legacy_names.append(remark if remark and remark != "无" else nickname)
-            names = _normalize_names(raw_legacy_names)
-            if names:
-                _save_friend_name_cache(names, wxid=wxid_key)
-                emit(f"已通过pywechat.get_friends_detail加载好友 {len(names)} 人")
-                return names
-            emit("pywechat.get_friends_detail解析为空，尝试pywechat.get_friends_names")
-
-            legacy_names = LegacyContacts.get_friends_names(is_json=False, is_maximize=False, close_wechat=False)
-            raw_names: list[str] = []
-            if isinstance(legacy_names, list):
-                for item in legacy_names:
-                    if not isinstance(item, dict):
-                        continue
-                    remark = str(item.get("备注", "")).strip()
-                    nickname = str(item.get("昵称", "")).strip()
-                    raw_names.append(remark if remark and remark != "无" else nickname)
-            names = _normalize_names(raw_names)
-            if names:
-                _save_friend_name_cache(names, wxid=wxid_key)
-                emit(f"已通过pywechat.get_friends_names加载好友 {len(names)} 人")
-                return names
-            emit("pywechat通讯录解析为空，回退会话列表获取好友")
-        except Exception as exc:
-            emit(f"pywechat通讯录获取失败，回退会话列表: {exc}")
-            emit(traceback.format_exc())
 
     try:
         names = _fetch_names_from_session_items()
@@ -316,26 +239,10 @@ def fetch_friend_profiles(
             _save_friend_name_cache([item["display_name"] for item in profiles], wxid=wxid_key)
             emit(f"好友详情与头像已同步到: {avatar_dir} (wxid={wxid_key})")
             return profiles
-        emit("pyweixin通讯录详情为空，尝试pywechat接口")
+        emit("pyweixin通讯录详情为空，回退会话列表")
     except Exception as exc:
-        emit(f"pyweixin通讯录详情获取失败，尝试pywechat接口: {exc}")
+        emit(f"pyweixin通讯录详情获取失败，回退会话列表: {exc}")
         emit(traceback.format_exc())
-
-    should_try_pywechat = sys.maxsize != 2**63 - 1
-    if should_try_pywechat:
-        try:
-            LegacyContacts = _load_pywechat_contacts_class()
-            legacy_detail = LegacyContacts.get_friends_detail(is_json=False, is_maximize=False, close_wechat=False)
-            profiles = _normalize_friend_profiles(legacy_detail if isinstance(legacy_detail, list) else [])
-            if profiles:
-                _save_friend_name_cache([item["display_name"] for item in profiles], wxid=wxid_key)
-                emit(f"已通过pywechat.get_friends_detail加载好友详情 {len(profiles)} 人")
-                return profiles
-        except Exception as exc:
-            emit(f"pywechat通讯录详情获取失败，回退会话列表: {exc}")
-            emit(traceback.format_exc())
-    elif not force_refresh:
-        emit("检测到64位环境（微信4.x），跳过pywechat兼容分支")
 
     try:
         names = _fetch_names_from_session_items()

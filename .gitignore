@@ -25,6 +25,9 @@ logs/
 data/
 *.log
 
+# Local debug helpers
+wechat_bot/debug_*.py
+
 # IDE / OS
 .DS_Store
 .idea/

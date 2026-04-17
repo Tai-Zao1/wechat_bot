@@ -1,6 +1,6 @@
 # WeChat Bot / pywechat
 
-这是一个基于 Windows UI Automation 与 `pywinauto` 的 PC 微信自动化项目，包含原 `pywechat` / `pyweixin` 能力以及面向业务场景封装的 `wechat_bot` GUI 工具。项目不涉及逆向 Hook，主要通过可访问性控件树、键鼠操作和窗口控件识别完成自动化流程。
+这是一个基于 Windows UI Automation 与 `pywinauto` 的 PC 微信自动化项目，包含面向微信 4.1.8 封装的自动化能力以及 `wechat_bot` GUI 工具。项目不涉及逆向 Hook，主要通过可访问性控件树、键鼠操作和窗口控件识别完成自动化流程。
 
 本仓库适用于 Windows 环境下的微信自动化开发、自动回复、好友添加、好友资料同步、消息监听、文件/朋友圈等 UI 自动化流程。
 
@@ -8,7 +8,7 @@
 
 请勿将本项目用于任何非法商业活动、侵犯隐私、骚扰、欺诈、批量营销、绕过平台规则或其他违法违规用途。因此造成的一切后果由使用者自行承担。
 
-本项目依赖 PC 微信 UI 结构。微信版本、语言、窗口状态、系统缩放、网络、输入法、权限或安全软件变化，都可能影响自动化稳定性。涉及真实账号和业务数据时，请务必先在测试账号和测试环境验证。
+本项目仅面向 PC 微信 4.1.8。其他微信版本的 UI 结构、控件名称和菜单行为可能不同，均不在当前支持范围内。涉及真实账号和业务数据时，请务必先在测试账号和测试环境验证。
 
 ## 致谢
 
@@ -20,10 +20,8 @@ https://github.com/Hello-Mr-Crab/pywechat/
 
 ## 支持环境
 
-- 操作系统：Windows 10 / Windows 11 优先；旧版 `pywechat` 兼容部分 Windows 7 / 32 位场景。
-- 微信版本：
-  - `pyweixin/`：面向 WeChat 4.1+，当前优先维护。
-  - `pywechat/`：面向 WeChat 3.9 时代，主要用于兼容旧版或 32 位环境。
+- 操作系统：Windows 10 / Windows 11。
+- 微信版本：仅支持 PC 微信 4.1.8。
 - Python：建议 Python 3.10+。
 - UI 前提：已登录 PC 微信，并保持微信主窗口可被系统 UI Automation 访问。
 
@@ -38,8 +36,8 @@ https://github.com/Hello-Mr-Crab/pywechat/
 │   ├── add_friend_by_phone.py
 │   ├── open_wechat_window.py
 │   └── ...
-├── pyweixin/                # WeChat 4.1+ 自动化模块
-├── pywechat/                # WeChat 3.9 兼容模块
+├── pyweixin/                # WeChat 4.1.8 自动化模块
+├── pywechat/                # 原项目保留模块，当前不作为支持入口
 ├── inspcet/                 # Windows UI Inspect 工具
 ├── installer/               # NSIS 安装包配置
 ├── scripts/                 # 打包脚本
@@ -49,7 +47,7 @@ https://github.com/Hello-Mr-Crab/pywechat/
 └── requirements*.txt        # 运行与 GUI 依赖
 ```
 
-注意：不要再使用气泡左右几何位置判断是否为己方消息。微信 4.1 的 UI 结构下该方式不稳定，容易误判。
+注意：不要再使用气泡左右几何位置判断是否为己方消息。微信 4.1.8 的 UI 结构下该方式不稳定，容易误判。
 
 ## 快速开始
 
@@ -83,10 +81,9 @@ python .\wechat_bot\pyqt_app.py
 
 ```powershell
 python -c "from pyweixin import Navigator"
-python -c "from pywechat import Tools"
 ```
 
-说明：`pywechat` 主要服务旧版 32 位微信场景。如果当前环境不满足旧版模块要求，优先使用 `pyweixin` 与 `wechat_bot`。
+说明：当前支持入口为 `wechat_bot` 与 `pyweixin`，仅按 PC 微信 4.1.8 验证。
 
 ## 接口配置
 
@@ -136,9 +133,9 @@ python .\wechat_bot\pyqt_app.py
 - `Traceback ... File "...", line ...` 等程序异常文本会被视为不可自动回复内容并跳过。
 - GUI 启动自动回复时默认带 `--keep-open`，停止自动回复不会主动关闭微信窗口。
 
-## WeChat 4.1+ UI 说明
+## WeChat 4.1.8 UI 说明
 
-微信 4.1+ 的 UI 自动化可见性与系统可访问性能力有关。实践中，先于微信登录前开启 Windows 讲述人并保持一段时间，可能帮助 UI Automation 暴露更多控件。该行为依赖系统与微信版本，不保证长期稳定。
+微信 4.1.8 的 UI 自动化可见性与系统可访问性能力有关。实践中，先于微信登录前开启 Windows 讲述人并保持一段时间，可能帮助 UI Automation 暴露更多控件。该行为依赖系统与微信版本，不保证长期稳定。
 
 Windows UI Automation 是可访问性 API，设计上需要向屏幕阅读器暴露 UI 元素信息。微信版本变更后，控件树、类名、菜单项、输入框、会话列表结构都可能变化，因此任何 UI 自动化逻辑都应保守处理异常并保留人工验证。
 
@@ -146,7 +143,7 @@ Windows UI Automation 是可访问性 API，设计上需要向屏幕阅读器暴
 
 ## pyweixin 模块概览
 
-`pyweixin` 面向 WeChat 4.1+：
+`pyweixin` 面向 PC 微信 4.1.8：
 
 - `Navigator`：打开微信内部界面、会话、独立聊天窗口等。
 - `Tools`：微信路径、运行状态、窗口与 UI 辅助工具。
@@ -171,19 +168,6 @@ dialog = Navigator.open_seperate_dialog_window(
 result = Monitor.listen_on_chat(dialog_window=dialog, duration="30s")
 print(result)
 ```
-
-## pywechat 兼容模块概览
-
-`pywechat` 面向 WeChat 3.9 时代，保留旧版自动化能力：
-
-- `Messages`：单人/多人消息发送、转发消息。
-- `Files`：单人/多人文件发送、转发文件。
-- `Contacts`：好友、企业微信联系人、群聊信息获取。
-- `FriendSettings` / `GroupSettings`：好友与群聊设置。
-- `Moments`：朋友圈数据获取、图片视频导出。
-- `AutoReply`：自动回复、接听语音或视频电话等。
-
-旧版微信和 32 位环境限制较多，使用前请确认当前 Python 位数、微信版本和操作系统匹配。
 
 ## 打包 GUI
 
