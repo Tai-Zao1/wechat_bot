@@ -1,0 +1,20 @@
+# NSIS / PyInstaller build config
+# 命令行参数优先级更高；这里适合放常用默认值。
+
+[installer]
+spec = "pywechat_bot_gui.spec"
+nsi = "installer/pywechat_bot_gui.nsi"
+
+# 可选：如果 makensis.exe 不在 PATH，可直接填绝对路径
+# makensis = "C:\\Program Files (x86)\\NSIS\\makensis.exe"
+
+# 可选：默认会自动读取项目版本号；如果这里填写则优先使用
+# app_version = "1.9.9"
+
+# 安装器文件名
+out_name = "PyWechatBotInstaller_客户版_v1.9.9.exe"
+
+# 安装器显示名称 / 安装目录名
+app_name = "微信助手客户版"
+display_name = "微信助手客户版 v1.9.9"
+app_dir_name = "WechatBotClient"
