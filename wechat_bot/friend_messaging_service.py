@@ -114,6 +114,7 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
     profiles.sort(key=lambda item: item.get("display_name", ""))
     return profiles
 
+
 def _fetch_names_from_session_items() -> list[str]:
     """从主窗口会话列表项的 `automation_id` 回退提取好友名称。"""
     from pyweixin.WeChatTools import Navigator

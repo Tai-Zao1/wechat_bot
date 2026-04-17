@@ -87,7 +87,12 @@ python -c "from pyweixin import Navigator"
 
 ## 接口配置
 
-本项目不在代码中硬编码真实后端地址。运行前复制环境变量模板：
+本项目支持两种运行模式：
+
+- API 模式：登录、聊天回复、好友同步走后端接口。
+- 本地模式：不登录后端，聊天回复走本地阿里百炼应用，好友列表只保存到本机缓存。
+
+运行前复制环境变量模板：
 
 ```powershell
 Copy-Item .\.env.example .\.env
@@ -100,11 +105,35 @@ notepad .\.env
 PYWECHAT_ENV=prod
 PYWECHAT_API_BASE_URL=https://example.com/api
 PYWECHAT_CHECK_ONLINE_BASE_URL=https://example.com/api
+PYWECHAT_CHAT_MODE=api
+PYWECHAT_BAILIAN_APP_ID=
+PYWECHAT_BAILIAN_API_KEY=
 ```
 
 `.env` 只用于本机配置，不要提交到 Git。仓库已通过 `.gitignore` 忽略 `.env`、日志、缓存、虚拟环境和构建产物。
 
 API 日志会自动脱敏 `token`、`Authorization`、`password`、`device_id`、`secret` 等字段。仍建议不要在 issue、PR 或截图中公开账号、手机号、微信号、聊天内容、接口地址和日志原文。
+
+### API 模式
+
+API 模式需要在启动 GUI 后使用后端账号登录。自动回复调用后端 `/autoWx/chat`，好友列表加载完成后会同步到后端。
+
+### 本地模式
+
+本地模式在启动 GUI 时选择“本地模式”，填写阿里百炼 `appId` 与 `apiKey` 后进入控制台。该模式下：
+
+- 不调用后端登录接口。
+- 自动回复调用本地配置的阿里百炼应用。
+- 好友列表只保存到本机缓存，不同步后端。
+- 接口批量加好友依赖后端接口，本地模式下不可用。
+
+阿里百炼默认 endpoint：
+
+```text
+https://dashscope.aliyuncs.com/api/v1/apps/{app_id}/completion
+```
+
+真实 `apiKey` 仅保存在本机配置中，不会写入仓库。启动子进程时也不会把 `apiKey` 打到运行日志。
 
 ## GUI 功能
 
@@ -123,7 +152,7 @@ python .\wechat_bot\pyqt_app.py
 - 好友资料与头像同步。
 - 定时/批量消息相关辅助流程。
 
-自动回复流程会调用 `/autoWx/chat`，并在日志中输出 `[AUTO] 聊天接口参数`，用于确认传给后端的业务字段。日志不会输出 token/header 明文。
+API 模式自动回复会调用 `/autoWx/chat`，并在日志中输出 `[AUTO] 聊天接口参数`，用于确认传给后端的业务字段。本地模式自动回复会输出 `[AUTO] 本地百炼参数`。日志不会输出 token/header/apiKey 明文。
 
 ## 自动回复注意事项
 
@@ -194,6 +223,7 @@ python -m PyInstaller --noconfirm --clean --onedir --windowed ^
   --hidden-import wechat_bot.open_wechat_window ^
   --hidden-import wechat_bot.auto_reply_unread ^
   --hidden-import wechat_bot.add_friend_by_phone ^
+  --hidden-import wechat_bot.local_bailian ^
   --exclude-module pywechat ^
   .\wechat_bot\pyqt_app.py
 ```

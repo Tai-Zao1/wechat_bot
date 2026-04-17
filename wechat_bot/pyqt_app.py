@@ -22,6 +22,7 @@ from PyQt5.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainte
 from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QDialog,
@@ -68,6 +69,7 @@ from wechat_bot.friend_messaging_service import (
     get_cached_friend_names,
     get_bot_logs_dir,
 )
+from wechat_bot.local_bailian import DEFAULT_BAILIAN_ENDPOINT, DEFAULT_BAILIAN_SYSTEM_PROMPT
 
 try:
     import win32gui  # type: ignore
@@ -245,10 +247,18 @@ class LoginWindow(QDialog):
         self.staff_info: dict | None = None
         self.user_info: dict | None = None
 
-        self.setWindowTitle("接口登录")
+        self.setWindowTitle("运行模式")
         self.setModal(True)
-        self.resize(500, 560)
+        self.resize(540, 660)
         self.setObjectName("loginDialog")
+
+        saved_mode = str(self.settings.value("run/mode", "api", type=str) or "api").strip().lower()
+        if saved_mode not in {"api", "local"}:
+            saved_mode = "api"
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("API 模式（后端登录/回复/同步）", "api")
+        self.mode_combo.addItem("本地模式（本地百炼回复/本地好友缓存）", "local")
+        self.mode_combo.setCurrentIndex(1 if saved_mode == "local" else 0)
 
         saved_username = self.settings.value("api/username", "", type=str) or self.settings.value("api/phone", "", type=str)
         self.username_input = QLineEdit(saved_username)
@@ -259,10 +269,19 @@ class LoginWindow(QDialog):
         self.password_input.setPlaceholderText("请输入登录密码")
         self.remember_checkbox = QCheckBox("记住用户名")
         self.remember_checkbox.setChecked(True)
-        self.message_label = QLabel("登录成功后才会进入控制台。若账号错误、网络异常或接口异常，将停留在登录页。")
+        self.bailian_app_id_input = QLineEdit(str(self.settings.value("local/bailian_app_id", "", type=str) or ""))
+        self.bailian_app_id_input.setPlaceholderText("请输入阿里百炼应用 appId")
+        self.bailian_api_key_input = QLineEdit(str(self.settings.value("local/bailian_api_key", "", type=str) or ""))
+        self.bailian_api_key_input.setEchoMode(QLineEdit.Password)
+        self.bailian_api_key_input.setPlaceholderText("请输入阿里百炼 apiKey")
+        self.bailian_system_input = QTextEdit(str(self.settings.value("local/bailian_system", DEFAULT_BAILIAN_SYSTEM_PROMPT, type=str) or DEFAULT_BAILIAN_SYSTEM_PROMPT))
+        self.bailian_system_input.setMinimumHeight(80)
+        self.bailian_endpoint_input = QLineEdit(str(self.settings.value("local/bailian_endpoint", DEFAULT_BAILIAN_ENDPOINT, type=str) or DEFAULT_BAILIAN_ENDPOINT))
+        self.bailian_endpoint_input.setPlaceholderText("百炼 endpoint，使用 {app_id} 占位")
+        self.message_label = QLabel("API 模式需要后端登录；本地模式不登录后端，聊天回复走本地阿里百炼配置，好友列表只保存在本机。")
         self.message_label.setWordWrap(True)
         self.message_label.setProperty("role", "pageDesc")
-        self.login_btn = QPushButton("登录")
+        self.login_btn = QPushButton("进入控制台")
         self.cancel_btn = QPushButton("取消")
         self.cancel_btn.setObjectName("ghostButton")
         self.brand_title = QLabel("Wechat 机器人平台")
@@ -277,6 +296,8 @@ class LoginWindow(QDialog):
         self.login_btn.clicked.connect(self.login)
         self.cancel_btn.clicked.connect(self.reject)
         self.password_input.returnPressed.connect(self.login)
+        self.mode_combo.currentIndexChanged.connect(self._update_mode_ui)
+        self._update_mode_ui()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -297,8 +318,19 @@ class LoginWindow(QDialog):
         card_layout.addWidget(self.message_label)
         card_layout.addSpacing(6)
 
-        card_layout.addWidget(self._build_input_row(self.account_icon, self.username_input))
-        card_layout.addWidget(self._build_input_row(self.password_icon, self.password_input))
+        self.mode_row = self._build_combo_row(QLabel("模式"), self.mode_combo)
+        self.username_row = self._build_input_row(self.account_icon, self.username_input)
+        self.password_row = self._build_input_row(self.password_icon, self.password_input)
+        self.bailian_app_id_row = self._build_input_row(QLabel("AppID"), self.bailian_app_id_input)
+        self.bailian_api_key_row = self._build_input_row(QLabel("Key"), self.bailian_api_key_input)
+        self.bailian_endpoint_row = self._build_input_row(QLabel("Endpoint"), self.bailian_endpoint_input)
+        card_layout.addWidget(self.mode_row)
+        card_layout.addWidget(self.username_row)
+        card_layout.addWidget(self.password_row)
+        card_layout.addWidget(self.bailian_app_id_row)
+        card_layout.addWidget(self.bailian_api_key_row)
+        card_layout.addWidget(self.bailian_system_input)
+        card_layout.addWidget(self.bailian_endpoint_row)
 
         remember_row = QHBoxLayout()
         remember_row.setContentsMargins(0, 0, 0, 0)
@@ -336,6 +368,34 @@ class LoginWindow(QDialog):
         layout.addWidget(icon_label)
         layout.addWidget(input_widget)
         return row
+
+    def _build_combo_row(self, icon_label: QLabel, input_widget: QComboBox) -> QWidget:
+        row = QWidget()
+        row.setObjectName("inputRow")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(14, 0, 14, 0)
+        layout.setSpacing(10)
+        icon_label.setObjectName("inputIcon")
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setFixedWidth(28)
+        layout.addWidget(icon_label)
+        layout.addWidget(input_widget)
+        return row
+
+    def _current_mode(self) -> str:
+        return str(self.mode_combo.currentData() or "api")
+
+    def _update_mode_ui(self) -> None:
+        is_api = self._current_mode() == "api"
+        for widget in (self.username_row, self.password_row, self.remember_checkbox):
+            widget.setVisible(is_api)
+        for widget in (
+            self.bailian_app_id_row,
+            self.bailian_api_key_row,
+            self.bailian_system_input,
+            self.bailian_endpoint_row,
+        ):
+            widget.setVisible(not is_api)
 
     def _apply_styles(self) -> None:
         self.setStyleSheet(
@@ -447,6 +507,11 @@ class LoginWindow(QDialog):
         self.remember_checkbox.setEnabled(not busy)
         self.username_input.setEnabled(not busy)
         self.password_input.setEnabled(not busy)
+        self.mode_combo.setEnabled(not busy)
+        self.bailian_app_id_input.setEnabled(not busy)
+        self.bailian_api_key_input.setEnabled(not busy)
+        self.bailian_system_input.setEnabled(not busy)
+        self.bailian_endpoint_input.setEnabled(not busy)
 
     def _finish_request(self) -> None:
         self._set_busy(False)
@@ -471,6 +536,27 @@ class LoginWindow(QDialog):
         worker.start()
 
     def login(self) -> None:
+        mode = self._current_mode()
+        self.settings.setValue("run/mode", mode)
+        if mode == "local":
+            app_id = self.bailian_app_id_input.text().strip()
+            api_key = self.bailian_api_key_input.text().strip()
+            system_prompt = self.bailian_system_input.toPlainText().strip() or DEFAULT_BAILIAN_SYSTEM_PROMPT
+            endpoint = self.bailian_endpoint_input.text().strip() or DEFAULT_BAILIAN_ENDPOINT
+            if not app_id:
+                QMessageBox.warning(self, "参数错误", "请输入阿里百炼应用 appId。")
+                return
+            if not api_key:
+                QMessageBox.warning(self, "参数错误", "请输入阿里百炼 apiKey。")
+                return
+            self.settings.setValue("local/bailian_app_id", app_id)
+            self.settings.setValue("local/bailian_api_key", api_key)
+            self.settings.setValue("local/bailian_system", system_prompt)
+            self.settings.setValue("local/bailian_endpoint", endpoint)
+            self.settings.remove("api/password")
+            self.accept()
+            return
+
         username = self.username_input.text().strip()
         password = self.password_input.text()
         if not username:
@@ -590,6 +676,9 @@ class MainWindow(QMainWindow):
         self.api_client = api_client
         self.on_auth_expired = on_auth_expired
         self.auth_expired_handling = False
+        self.run_mode = str(self.settings.value("run/mode", "api", type=str) or "api").strip().lower()
+        if self.run_mode not in {"api", "local"}:
+            self.run_mode = "api"
 
         self.auto_process: QProcess | None = None
         self.add_friend_process: QProcess | None = None
@@ -617,7 +706,8 @@ class MainWindow(QMainWindow):
 
         self.desktop_dir = Path.home() / "Desktop"
         self.app_root_dir = get_bot_app_root()
-        self.add_friend_source_input = QLineEdit(DEFAULT_ADD_FRIEND_SOURCE_TEXT)
+        source_text = DEFAULT_ADD_FRIEND_SOURCE_TEXT if self.run_mode == "api" else "本地模式不使用后端批量加好友接口"
+        self.add_friend_source_input = QLineEdit(source_text)
         self.add_friend_source_input.setReadOnly(True)
         self.greetings_input = QLineEdit("")
         self.interval_min_input = QLineEdit(str(int(DEFAULT_ADD_FRIEND_INTERVAL_MIN_MINUTES)))
@@ -655,11 +745,15 @@ class MainWindow(QMainWindow):
         self.stop_auto_btn.setEnabled(False)
 
         self._build_ui()
+        if self.run_mode == "local":
+            self.start_add_btn.setEnabled(False)
+            self.stop_add_btn.setEnabled(False)
         self._apply_style()
         self._init_side_menu_icons()
         self._restore_nav_index()
         self._load_shortlink_rules_to_editor()
         self.append_log(f"GUI日志文件: {self.log_file_path}")
+        self.append_log(f"当前运行模式: {'API模式' if self.run_mode == 'api' else '本地模式'}")
         # 旧逻辑：启动时从本地缓存恢复好友列表。
         # self._load_friend_list_from_cache_on_startup()
         self.append_log("启动时不再自动读取本地好友缓存，请点击“加载好友列表”实时获取。")
@@ -903,6 +997,23 @@ class MainWindow(QMainWindow):
     def _shortlink_rule_file(self) -> Path:
         return get_bot_data_dir(wxid=self.current_wxid) / SHORTLINK_RULE_FILENAME
 
+    def _local_bailian_args(self) -> list[str]:
+        app_id = str(self.settings.value("local/bailian_app_id", "", type=str) or "").strip()
+        system_prompt = str(self.settings.value("local/bailian_system", DEFAULT_BAILIAN_SYSTEM_PROMPT, type=str) or DEFAULT_BAILIAN_SYSTEM_PROMPT)
+        endpoint = str(self.settings.value("local/bailian_endpoint", DEFAULT_BAILIAN_ENDPOINT, type=str) or DEFAULT_BAILIAN_ENDPOINT)
+        args = ["--chat-mode", "local"]
+        if app_id:
+            args.extend(["--bailian-app-id", app_id])
+        if system_prompt:
+            args.extend(["--bailian-system", system_prompt])
+        if endpoint:
+            args.extend(["--bailian-endpoint", endpoint])
+        return args
+
+    def _local_bailian_env(self) -> dict[str, str]:
+        api_key = str(self.settings.value("local/bailian_api_key", "", type=str) or "").strip()
+        return {"PYWECHAT_BAILIAN_API_KEY": api_key} if api_key else {}
+
     def _load_shortlink_rules_to_editor(self) -> None:
         rule_file = self._shortlink_rule_file()
         data = load_json_dict(rule_file)
@@ -1076,10 +1187,30 @@ class MainWindow(QMainWindow):
             worker.done.connect(lambda _name, code: on_done(int(code)))
         worker.finished.connect(lambda: self.embedded_workers.remove(worker) if worker in self.embedded_workers else None)
         self.embedded_workers.append(worker)
-        self.append_log(f"已启动(内嵌): {script_name} {' '.join(args)}")
+        self.append_log(f"已启动(内嵌): {script_name} {' '.join(self._sanitize_process_args(args))}")
         worker.start()
 
-    def _start_process(self, script_name: str, args: list[str], keep_ref: bool = True) -> QProcess | None:
+    def _sanitize_process_args(self, args: list[str]) -> list[str]:
+        sanitized: list[str] = []
+        hide_next = False
+        secret_options = {"--bailian-api-key", "--bailian-system", "--password", "--token"}
+        for arg in args:
+            if hide_next:
+                sanitized.append("***")
+                hide_next = False
+                continue
+            sanitized.append(arg)
+            if arg in secret_options:
+                hide_next = True
+        return sanitized
+
+    def _start_process(
+        self,
+        script_name: str,
+        args: list[str],
+        keep_ref: bool = True,
+        extra_env: dict[str, str] | None = None,
+    ) -> QProcess | None:
         # 打包环境中，短任务改为进程内线程执行，避免 onefile 子进程反复创建临时目录失败。
         if getattr(sys, "frozen", False) and script_name != "auto_reply_unread.py":
             self._start_embedded_worker(script_name, args)
@@ -1091,6 +1222,8 @@ class MainWindow(QMainWindow):
         env.insert("PYTHONUTF8", "1")
         env.insert("PYTHONIOENCODING", "utf-8")
         env.insert("PYTHONUNBUFFERED", "1")
+        for key, value in (extra_env or {}).items():
+            env.insert(str(key), str(value))
         process.setProcessEnvironment(env)
 
         process.readyReadStandardOutput.connect(
@@ -1117,7 +1250,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "启动失败", f"无法启动脚本: {script_name}")
             return None
 
-        self.append_log(f"已启动: {script_name} {' '.join(args)}")
+        self.append_log(f"已启动: {script_name} {' '.join(self._sanitize_process_args(args))}")
         if keep_ref:
             self.child_processes.append(process)
         return process
@@ -1367,6 +1500,9 @@ class MainWindow(QMainWindow):
     def _sync_friend_profiles_to_backend(self) -> None:
         if not self.friend_profiles:
             self.append_log("好友列表为空，跳过后端同步")
+            return
+        if self.run_mode == "local":
+            self.append_log("本地模式：好友列表已保存到本机缓存，跳过后端同步")
             return
         if self.api_client is None or not self.api_client.is_authenticated:
             self.append_log("未登录后端，跳过好友列表同步")
@@ -1876,6 +2012,12 @@ class MainWindow(QMainWindow):
             self.reply_input.text().strip() or DEFAULT_AUTO_REPLY_TEXT,
             "--keep-open",
         ]
+        extra_env: dict[str, str] = {}
+        if self.run_mode == "local":
+            args.extend(self._local_bailian_args())
+            extra_env.update(self._local_bailian_env())
+        else:
+            args.extend(["--chat-mode", "api"])
         shortlink_rule_file = self._shortlink_rule_file()
         if shortlink_rule_file.is_file():
             args.extend(["--mini-shortlink-rules", str(shortlink_rule_file)])
@@ -1885,7 +2027,7 @@ class MainWindow(QMainWindow):
             if self.wechat_dock_timer is None:
                 self.append_log("微信窗口停靠未启动，已取消自动回复启动")
                 return
-        self.auto_process = self._start_process("auto_reply_unread.py", args, keep_ref=False)
+        self.auto_process = self._start_process("auto_reply_unread.py", args, keep_ref=False, extra_env=extra_env)
         if self.auto_process is not None:
             self.start_auto_btn.setEnabled(False)
             self.stop_auto_btn.setEnabled(True)
@@ -1910,6 +2052,9 @@ class MainWindow(QMainWindow):
 
     def run_add_friends(self) -> None:
         self._refresh_log_file_by_wxid()
+        if self.run_mode == "local":
+            QMessageBox.information(self, "本地模式", "本地模式不调用后端批量加好友接口。")
+            return
         if self.add_friend_process is not None and self.add_friend_process.state() != QProcess.NotRunning:
             QMessageBox.information(self, "提示", "批量添加好友已在运行。")
             return

@@ -11,6 +11,7 @@ hiddenimports = [
     "wechat_bot.open_wechat_window",
     "wechat_bot.auto_reply_unread",
     "wechat_bot.add_friend_by_phone",
+    "wechat_bot.local_bailian",
 ]
 
 

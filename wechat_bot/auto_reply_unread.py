@@ -48,6 +48,13 @@ from wechat_bot.core import (
     get_check_online_base_url,
 )
 from wechat_bot.self_profile_cache import get_self_profile
+from wechat_bot.local_bailian import (
+    DEFAULT_BAILIAN_ENDPOINT,
+    DEFAULT_BAILIAN_SYSTEM_PROMPT,
+    LocalBailianClient,
+    LocalBailianConfig,
+    mask_secret,
+)
 from client_api import (
     WeChatAIAuthenticationError,
     WeChatAIClient,
@@ -301,6 +308,26 @@ def load_chat_api_client() -> WeChatAIClient | None:
     return client
 
 
+def load_local_bailian_client(args: argparse.Namespace) -> LocalBailianClient | None:
+    config = LocalBailianConfig(
+        app_id=str(args.bailian_app_id or "").strip(),
+        api_key=str(args.bailian_api_key or "").strip(),
+        system_prompt=str(args.bailian_system or "").strip(),
+        endpoint=str(args.bailian_endpoint or DEFAULT_BAILIAN_ENDPOINT).strip(),
+        timeout=float(args.bailian_timeout or 20.0),
+    )
+    if not config.enabled:
+        log("本地百炼", "缺少 appId/apiKey，使用本地规则回复")
+        return None
+    try:
+        client = LocalBailianClient(config)
+    except Exception as exc:
+        log("本地百炼", f"初始化失败，使用本地规则回复: {exc}")
+        return None
+    log("本地百炼", f"已启用 appId={config.app_id} apiKey={mask_secret(config.api_key)}")
+    return client
+
+
 def has_no_subscriber_error(exc: Exception) -> bool:
     texts: list[str] = [str(exc or "")]
     response_data = getattr(exc, "response_data", None)
@@ -459,25 +486,36 @@ def main() -> int:
         help="小程序短链投递后，等待微信生成可转发小程序记录的秒数（默认 3.0）",
     )
     parser.add_argument(
+        "--chat-mode",
+        choices=("api", "local", "rules"),
+        default=os.getenv("PYWECHAT_CHAT_MODE", "api"),
+        help="聊天回复模式：api=后端接口，local=本地百炼，rules=仅本地规则",
+    )
+    parser.add_argument(
         "--bailian-app-id",
-        default=None,
-        help="兼容保留参数（已不使用，统一改走 /client/chat）",
+        default=os.getenv("PYWECHAT_BAILIAN_APP_ID"),
+        help="本地模式使用的阿里百炼应用 appId",
     )
     parser.add_argument(
         "--bailian-api-key",
-        default=None,
-        help="兼容保留参数（已不使用，统一改走 /client/chat）",
+        default=os.getenv("PYWECHAT_BAILIAN_API_KEY"),
+        help="本地模式使用的阿里百炼 apiKey",
     )
     parser.add_argument(
         "--bailian-timeout",
         type=float,
-        default=20.0,
-        help="兼容保留参数（已不使用，统一改走 /client/chat）",
+        default=float(os.getenv("PYWECHAT_BAILIAN_TIMEOUT", "20")),
+        help="本地百炼请求超时时间（秒，默认 20）",
     )
     parser.add_argument(
         "--bailian-system",
-        default="你是微信自动回复助手。请用简短、礼貌、自然的中文直接回复用户消息，不要解释你是模型。",
-        help="兼容保留参数（已不使用，统一改走 /client/chat）",
+        default=os.getenv("PYWECHAT_BAILIAN_SYSTEM", DEFAULT_BAILIAN_SYSTEM_PROMPT),
+        help="本地百炼系统提示词",
+    )
+    parser.add_argument(
+        "--bailian-endpoint",
+        default=os.getenv("PYWECHAT_BAILIAN_ENDPOINT", DEFAULT_BAILIAN_ENDPOINT),
+        help="本地百炼 endpoint 模板，使用 {app_id} 占位",
     )
     parser.add_argument(
         "--dedup-ttl-hours",
@@ -557,7 +595,10 @@ def main() -> int:
         log("短链规则", f"{len(shortlink_rules)} 条")
     else:
         log("短链规则", "0 条（不使用短链转卡片）")
-    log("聊天参数", "兼容保留 --bailian-* 参数，但当前统一改走 /client/chat")
+    chat_mode = str(args.chat_mode or "api").strip().lower()
+    if chat_mode not in {"api", "local", "rules"}:
+        chat_mode = "api"
+    log("聊天模式", chat_mode)
 
     main_window = None
     active_next_reply_at: dict[str, float] = {}
@@ -587,7 +628,8 @@ def main() -> int:
     replied_recent_order: dict[str, collections.deque[tuple[float, str]]] = {}
     replied_recent_texts: dict[str, collections.deque[tuple[float, str]]] = {}
     recent_sent_texts: dict[str, collections.deque[tuple[float, str]]] = {}
-    chat_api_client = load_chat_api_client()
+    chat_api_client = load_chat_api_client() if chat_mode == "api" else None
+    local_bailian_client = load_local_bailian_client(args) if chat_mode == "local" else None
     cache_file = resolve_cache_file()
     recent_reply_file = resolve_recent_reply_file()
     self_sent_file = resolve_self_sent_file()
@@ -1829,13 +1871,47 @@ def main() -> int:
         return count
 
     def make_reply(friend: str, latest_text: str) -> str:
-        nonlocal chat_api_client
+        nonlocal chat_api_client, local_bailian_client
+        clean_friend = str(friend or "").strip()
+        wechat_id = self_wechat_id or "wxid_unknown"
+        if chat_mode == "local":
+            if local_bailian_client is None:
+                local_bailian_client = load_local_bailian_client(args)
+            if local_bailian_client is not None:
+                try:
+                    log(
+                        "本地百炼参数",
+                        {
+                            "appId": str(args.bailian_app_id or "").strip(),
+                            "content": latest_text,
+                            "nickname": self_nickname,
+                            "displayName": clean_friend,
+                            "toNickname": clean_friend,
+                        },
+                    )
+                    result = local_bailian_client.chat(
+                        message=latest_text,
+                        nickname=self_nickname,
+                        display_name=clean_friend,
+                        to_nickname=clean_friend,
+                    )
+                    reply = str(result.get("reply") or "").strip()
+                    if reply:
+                        log("本地百炼回复", f"{friend} source={result.get('reply_source') or 'local_bailian'}")
+                        return reply
+                    log("本地百炼回复为空", f"{friend} -> 使用本地规则回复")
+                except KeyboardInterrupt as exc:
+                    log("本地百炼调用中断", f"{friend} -> {exc}")
+                except Exception as exc:
+                    log("本地百炼调用失败", f"{friend} -> {exc}")
+                    local_bailian_client = None
+            return choose_reply(latest_text, args.reply, rules)
+        if chat_mode == "rules":
+            return choose_reply(latest_text, args.reply, rules)
         if chat_api_client is None:
             chat_api_client = load_chat_api_client()
         if chat_api_client is not None:
             try:
-                clean_friend = str(friend or "").strip()
-                wechat_id = self_wechat_id or "wxid_unknown"
                 log(
                     "聊天接口请求",
                     f"{friend} -> /autoWx/chat wechatId={wechat_id} nickname={self_nickname or '-'} toNickname={clean_friend or '-'}",
