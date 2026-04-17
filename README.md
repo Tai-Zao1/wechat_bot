@@ -1,48 +1,69 @@
-# WeChat Bot / pywechat （AI润色）
+# WeChat Bot（文档通过AI润色）
 
-这是一个基于 Windows UI Automation 与 `pywinauto` 的 PC 微信自动化项目，包含面向微信 4.1.8 封装的自动化能力以及 `wechat_bot` GUI 工具。项目不涉及逆向 Hook，主要通过可访问性控件树、键鼠操作和窗口控件识别完成自动化流程。
+这是一个面向 **Windows + PC 微信 4.1.8** 的微信自动化项目。
 
-本仓库适用于 Windows 环境下的微信自动化开发、自动回复、好友添加、好友资料同步、消息监听、文件/朋友圈等 UI 自动化流程。
+仓库由两部分组成：
 
-## 如果你第一次看这个仓库
+- `pyweixin`
+  底层 UI 自动化封装，负责窗口定位、控件识别、聊天页/通讯录/资料页操作。
+- `wechat_bot`
+  上层业务工具，提供 GUI、自动回复、好友列表同步、批量加好友、定时群发等能力。
 
-先不用从几千行的自动化代码开始翻。按这个顺序看最省时间：
+项目不依赖 Hook、注入或逆向改写微信进程，核心方式是：
 
-1. `README.md`
-   先知道项目分几层、入口在哪、支持什么环境。
-2. `wechat_bot/pyqt_app.py`
-   这是 GUI 主入口，大部分功能都是从这里触发的。
-3. `wechat_bot/friend_messaging_service.py`
-   这是好友列表、头像同步、定时群发的业务层。
-4. `wechat_bot/auto_reply_unread.py`
-   这是自动回复主流程。
-5. `client_api/client.py`
-   如果你接后端接口，这里是唯一需要重点看的 API 客户端。
-6. `pyweixin/WeChatTools.py` + `pyweixin/WeChatAuto.py`
-   如果你要改底层 UI 自动化，再进入这里。
+- Windows UI Automation
+- `pywinauto`
+- 键鼠操作
+- 可访问性控件树识别
 
-## 三层结构
+如果你要做的是下面这类事情，这个仓库就是对应的工程入口：
 
-这个项目可以简单理解为三层：
+- PC 微信自动化开发
+- 自动回复
+- 好友列表与头像同步
+- Excel / 接口手机号批量加好友
+- 本地模式 / API 模式切换
+- 基于 GUI 的日常运营辅助工具
+
+## 项目介绍
+
+这个仓库的目标不是只提供几个零散脚本，而是把“可运行的微信自动化工具”和“可继续二次开发的代码结构”放在一起。
+
+你可以把它理解为一个三层项目：
 
 - `wechat_bot/`
-  面向使用者的业务层。GUI、自动回复、批量加好友、好友同步都在这里。
+  面向使用者和业务流程。GUI、自动回复、定时群发、批量加好友都在这里。
 - `client_api/`
-  面向后端接口的网络层。只负责登录、聊天接口、好友同步、在线检测等 HTTP 请求。
+  面向后端接口。负责登录、聊天接口、好友同步、在线检测等 HTTP 通信。
 - `pyweixin/`
-  面向 PC 微信 4.1.8 的 UI 自动化底层。只负责“怎么点微信、怎么找控件、怎么拿数据”。
+  面向 PC 微信界面本身。负责怎么打开窗口、怎么找到控件、怎么执行 UI 操作。
 
-这样看代码时，不容易混：
+这样拆开以后，阅读和修改会更清楚：
 
-- 想改界面、运行流程、业务规则，看 `wechat_bot/`
-- 想改接口地址、鉴权、请求参数，看 `client_api/`
-- 想修 UIA 控件定位、聊天窗口、通讯录、头像抓取，看 `pyweixin/`
+- 改业务规则，看 `wechat_bot/`
+- 改接口请求，看 `client_api/`
+- 改微信控件定位和底层自动化，看 `pyweixin/`
 
-## 重要声明
+## 核心能力
 
-请勿将本项目用于任何非法商业活动、侵犯隐私、骚扰、欺诈、批量营销、绕过平台规则或其他违法违规用途。因此造成的一切后果由使用者自行承担。
+- 仅支持 **PC 微信 4.1.8**
+- 支持 **API 模式** 和 **本地模式**
+- 支持好友列表、好友资料、头像按 **不同微信号分目录缓存**
+- 支持 GUI 操作，也保留脚本入口，便于二次开发
+- 支持通过 `python -m wechat_bot.scripts ...` 方式运行主要脚本
 
-本项目仅面向 PC 微信 4.1.8。其他微信版本的 UI 结构、控件名称和菜单行为可能不同，均不在当前支持范围内。涉及真实账号和业务数据时，请务必先在测试账号和测试环境验证。
+## 适用人群
+
+- 想基于 PC 微信做自动化的开发者
+- 需要一个现成 GUI 工具做日常操作的使用者
+- 需要在现有项目上继续扩展自动回复、加好友、资料同步能力的二次开发者
+
+## 重要边界
+
+- 仅支持 **Windows**
+- 仅支持 **PC 微信 4.1.8**
+- 涉及真实账号前，请先在测试号验证
+- 禁止将本项目用于任何非法商业活动，因此造成的一切后果由使用者自行承担
 
 ## 致谢
 
@@ -51,6 +72,66 @@
 https://github.com/Hello-Mr-Crab/pywechat/
 
 感谢原作者对 PC 微信 UI 自动化能力的探索与开源贡献。
+
+## 如果你第一次看这个仓库
+
+先不用从几千行的自动化代码开始翻。按这个顺序看最省时间：
+
+1. `README.md`
+   先知道项目分几层、入口在哪、支持什么环境。
+2. `wechat_bot/README.md`
+   先把 `wechat_bot/` 目录内部的层次看清楚。
+3. `wechat_bot/pyqt_app.py`
+   这是 GUI 主入口，大部分功能都是从这里触发的。
+4. `wechat_bot/scripts/registry.py`
+   这里能直接看出旧脚本名、新脚本名、实际实现文件的对应关系。
+5. `wechat_bot/services/friend_directory.py`
+   这是好友列表、头像同步的主要业务层。
+6. `wechat_bot/scripts/auto_reply.py`
+   这是自动回复主流程。
+7. `client_api/client.py`
+   如果你接后端接口，这里是唯一需要重点看的 API 客户端。
+8. `pyweixin/WeChatTools.py` + `pyweixin/WeChatAuto.py`
+   如果你要改底层 UI 自动化，再进入这里。
+
+如果你只想快速找入口，也可以直接看这些更容易理解的别名目录：
+
+- `wechat_bot/gui/`
+- `wechat_bot/scripts/`
+- `wechat_bot/scripts/README.md`
+- `wechat_bot/services/`
+- `wechat_bot/services/README.md`
+- `wechat_bot/runtime/`
+- `wechat_bot/runtime/README.md`
+- `wechat_bot/compat/`
+- `wechat_bot/compat/README.md`
+- `wechat_bot/common/README.md`
+- `wechat_bot/core/README.md`
+- `wechat_bot/examples/README.md`
+- `wechat_bot/templates/README.md`
+
+根目录里那些旧文件名现在主要是兼容层，例如：
+
+- `wechat_bot/auto_reply_unread.py`
+- `wechat_bot/add_friend_by_phone.py`
+- `wechat_bot/friend_messaging_service.py`
+
+它们仍可运行，但新代码和新阅读路径应优先看 `scripts/`、`services/`、`runtime/`。
+旧模块导入兼容逻辑集中在 `wechat_bot/compat/`。
+
+脚本层现在也支持这种更容易理解的运行方式：
+
+```powershell
+python -m wechat_bot.scripts --help
+python -m wechat_bot.scripts auto_reply
+python -m wechat_bot.scripts add_friends --help
+```
+
+## 重要声明
+
+请勿将本项目用于任何非法商业活动、侵犯隐私、骚扰、欺诈、批量营销、绕过平台规则或其他违法违规用途。因此造成的一切后果由使用者自行承担。
+
+本项目仅面向 PC 微信 4.1.8。其他微信版本的 UI 结构、控件名称和菜单行为可能不同，均不在当前支持范围内。涉及真实账号和业务数据时，请务必先在测试账号和测试环境验证。
 
 ## 支持环境
 
@@ -64,13 +145,30 @@ https://github.com/Hello-Mr-Crab/pywechat/
 ```text
 .
 ├── wechat_bot/              # 业务层：GUI、自动回复、批量加好友、好友同步
+│   ├── gui/                 # GUI 入口别名层
+│   ├── scripts/             # 更清晰的脚本入口别名层
+│   │   ├── auto_reply_support.py # 自动回复专用缓存/规则辅助
+│   ├── services/            # 业务服务别名层
+│   │   ├── friend_directory.py # 好友列表、头像同步
+│   │   ├── reply_service.py # 自动回复的 API/本地回复调度
+│   │   ├── timed_send.py    # 定时群发
+│   │   └── local_ai.py      # 本地百炼别名入口
+│   ├── runtime/             # 运行时状态与缓存层
+│   │   ├── scheduler.py     # 跨进程 UI 调度
+│   │   └── self_profile.py  # 本人资料缓存与读取
+│   ├── compat/              # 旧导入路径兼容层
 │   ├── pyqt_app.py          # GUI 主入口
-│   ├── auto_reply_unread.py # 自动回复主流程
-│   ├── friend_messaging_service.py # 好友列表、头像同步、定时群发
-│   ├── add_friend_by_phone.py # 批量加好友
-│   ├── local_bailian.py     # 本地阿里百炼调用
-│   ├── common/              # 默认值、JSON存储、自动回复公共逻辑
-│   └── core/                # 路径、类型、全局配置
+│   ├── auto_reply_unread.py # 旧兼容入口，内部已转发到 scripts/
+│   ├── add_friend_by_phone.py # 旧兼容入口，内部已转发到 scripts/
+│   ├── check_wechat_status.py # 旧兼容入口，内部已转发到 scripts/
+│   ├── open_wechat_window.py # 旧兼容入口，内部已转发到 scripts/
+│   ├── friend_messaging_service.py # 旧兼容入口，内部已转发到 compat/
+│   ├── local_bailian.py     # 旧兼容入口，内部已转发到 compat/
+│   ├── common/              # 默认值、JSON存储等通用模块
+│   │   └── auto_reply.py    # 自动回复专用兼容入口，内部已转发到 compat/
+│   ├── core/                # 路径、类型、全局配置
+│   ├── examples/            # 规则示例
+│   └── templates/           # Excel 模板
 ├── client_api/              # 网络层：后端接口客户端
 │   └── client.py            # 登录、聊天、好友同步等 HTTP 封装
 ├── pyweixin/                # 底层自动化：PC 微信 4.1.8 UI 自动化
@@ -129,9 +227,16 @@ python -c "from pyweixin import Navigator"
 如果你是二次开发，通常按下面找文件就够了：
 
 - 改 GUI 按钮、页面、日志展示：`wechat_bot/pyqt_app.py`
-- 改自动回复逻辑、聊天模式、短链规则：`wechat_bot/auto_reply_unread.py`
-- 改好友列表加载、头像同步、定时群发：`wechat_bot/friend_messaging_service.py`
-- 改批量加好友、Excel 导入、API 拉号：`wechat_bot/add_friend_by_phone.py`
+- 改自动回复逻辑、聊天模式、短链规则：`wechat_bot/scripts/auto_reply.py`
+- 改好友列表加载、头像同步：`wechat_bot/services/friend_directory.py`
+- 改定时群发：`wechat_bot/services/timed_send.py`
+- 改批量加好友、Excel 导入、API 拉号：`wechat_bot/scripts/add_friends.py`
+- 改自动回复的 API / 本地百炼回复调度：`wechat_bot/services/reply_service.py`
+- 改跨进程 UI 调度、锁、运行时接管：`wechat_bot/runtime/scheduler.py`
+- 改本人资料缓存与读取：`wechat_bot/runtime/self_profile.py`
+- 改示例规则文件：`wechat_bot/examples/reply_rules.example.json`
+- 改批量加好友模板：`wechat_bot/templates/friends_template.xlsx`
+- 看示例/模板目录说明：`wechat_bot/examples/README.md`、`wechat_bot/templates/README.md`
 - 改后端接口、登录、token、请求参数：`client_api/client.py`
 - 改微信窗口定位、通讯录、聊天窗口、会话列表：`pyweixin/WeChatTools.py`
 - 改消息、通讯录、文件、朋友圈等底层自动化能力：`pyweixin/WeChatAuto.py`
@@ -146,6 +251,11 @@ python -c "from pyweixin import Navigator"
 3. 业务脚本按需要调用：
    `client_api/` 访问后端接口，或调用 `pyweixin/` 操作 PC 微信。
 4. 公共配置、路径、类型由 `wechat_bot/common/` 和 `wechat_bot/core/` 提供。
+
+兼容说明：
+
+- 旧文件入口暂时还保留，例如 `wechat_bot/friend_messaging_service.py`
+- 新代码优先放到 `wechat_bot/services/`、`wechat_bot/runtime/`、`wechat_bot/scripts/`
 
 ## 接口配置
 
@@ -333,11 +443,13 @@ installer\build_config.toml
 当前仓库未提供正式 `tests/` 目录。建议至少执行：
 
 ```powershell
-python -m py_compile client_api\client.py wechat_bot\auto_reply_unread.py wechat_bot\pyqt_app.py
+python -m py_compile client_api\client.py wechat_bot\scripts\auto_reply.py wechat_bot\scripts\add_friends.py wechat_bot\pyqt_app.py
 python -c "from pyweixin import Navigator"
 ```
 
 功能验证应在已登录微信的真实 Windows 环境完成。涉及自动回复、文件发送、好友添加等流程时，先使用测试账号和测试会话。
+
+仓库层面请不要提交 `.DS_Store`、`__pycache__/`、日志、运行缓存、聊天导出数据和本机环境文件。
 
 ## 常见问题
 
