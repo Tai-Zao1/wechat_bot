@@ -1,392 +1,292 @@
-# pywechat🥇
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/wechat.png)
-## 🍬🍬微信RPA工具,现支持4.1+部分功能具体使用方法见：
+# WeChat Bot / pywechat
 
-https://github.com/Hello-Mr-Crab/pywechat/blob/main/Weixin4.0.md
+这是一个基于 Windows UI Automation 与 `pywinauto` 的 PC 微信自动化项目，包含原 `pywechat` / `pyweixin` 能力以及面向业务场景封装的 `wechat_bot` GUI 工具。项目不涉及逆向 Hook，主要通过可访问性控件树、键鼠操作和窗口控件识别完成自动化流程。
 
-### pywechat是一个基于pywinauto实现的Windows系统下PC微信自动化(pure uiautomation)的Python项目(不涉及逆向Hook操作),实现了PC微信内置的大部分功能。
+本仓库适用于 Windows 环境下的微信自动化开发、自动回复、好友添加、好友资料同步、消息监听、文件/朋友圈等 UI 自动化流程。
 
-### 微信版本:3.9+,4.1+
-### 操作系统:🪟windows 7 🪟windows 10 🪟windows 11
-### python版本🐍:3.9+(支持TypeHint)
-### 支持语言:简体中文,English,繁体中文
-### pyweixin 与 pywechat 项目结构(pywechat只能用于32位x86🪟10,32位x86🪟7)：
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/pyweixin结构.png)
-<br>
+## 重要声明
 
-## pyweixin内所有方法需要先导入模块下的类然后调用内部方法🗺️🗺️
-```
-from pyweixin import xx(class)
-xx(class).yy(method)
-```
-<br>
+请勿将本项目用于任何非法商业活动、侵犯隐私、骚扰、欺诈、批量营销、绕过平台规则或其他违法违规用途。因此造成的一切后果由使用者自行承担。
 
-### 获取方法（4.1+微信）:
-```
-git clone https://github.com/Hello-Mr-Crab/pywechat.git
-```
-<br>
+本项目依赖 PC 微信 UI 结构。微信版本、语言、窗口状态、系统缩放、网络、输入法、权限或安全软件变化，都可能影响自动化稳定性。涉及真实账号和业务数据时，请务必先在测试账号和测试环境验证。
 
-### 获取方法（3.9+微信）:
-#### 最新版本:1.9.7
-```
-pip install pywechat127==1.9.7
-```
-<br>
+## 致谢
 
-```
-pip install --upgrade pywechat127
-```
-<br>
+本项目基于并延续了原作者 Hello-Mr-Crab 的 `pywechat` 项目思路与代码基础：
 
-```
-git clone https://github.com/Hello-Mr-Crab/pywechat.git
-```
-<br>
+https://github.com/Hello-Mr-Crab/pywechat/
 
-### pyweixin模块介绍(适用于4.1+微信)
-#### WechatTools🌪️🌪️
-##### class包括:
-- `Tools`:关于PC微信的一些工具,微信路径,运行状态,以及内部一些UI相关的判别方法。
-- `Navigator`:打开微信内部一切可以打开的界面。
-<br>
+感谢原作者对 PC 微信 UI 自动化能力的探索与开源贡献。
 
-#### WechatAuto🛏️🛏️
-##### class包括：
-- `AutoReply`:自动回复操作
-- `Call`: 给某个好友打视频或语音电话。
-- `Contacts`: 获取通讯录内各分区(联系人,企业微信联系人,公众号,服务号)好友的信息,获取共同群聊名称,获取好友个人简介
-- `Files`: 文件发送，聊天文件从本地导出等。
-- `FriendSettings`: PC微信针对某个好友的一些相关设置。
-- `Messages`: 消息发送,聊天记录获取,聊天会话导出等条。
-- `Moments`:针对微信朋友圈的一些方法,包括朋友圈界面内容获取，发布朋友圈
-- `Monitor`:打开聊天窗口进行监听消息
-<br>
+## 支持环境
 
-#### WinSettings🔹🔹
-##### class包括：
-- `SystemSettings`:该模块中提供了一些修改windows系统设置的方法(在自动化过程中)。
-<br>
+- 操作系统：Windows 10 / Windows 11 优先；旧版 `pywechat` 兼容部分 Windows 7 / 32 位场景。
+- 微信版本：
+  - `pyweixin/`：面向 WeChat 4.1+，当前优先维护。
+  - `pywechat/`：面向 WeChat 3.9 时代，主要用于兼容旧版或 32 位环境。
+- Python：建议 Python 3.10+。
+- UI 前提：已登录 PC 微信，并保持微信主窗口可被系统 UI Automation 访问。
 
-#### utils🍬🍬
-##### 内部的一些函数主要用来二次开发,大部分传入的参数是main_window,pywinauto实例化的对象(使用Navigator.open_weixin打开)
-##### class包括：
-- `Regex_Patterns`:自动化过程中用到的正则pattern。
-##### func包括:
-- `At`:在群聊中At指定的一些好友
-- `At_all`:在群聊中At所有人
-- `auto_reply_to_friend_decorator`:自动回复好友装饰器
-- `get_new_message_num`：获取新消息总数,微信按钮上的红色数字
-- `scan_for_newMessages`：会话列表遍历一遍有新消息提示的对象,返回好友名称与数量
-- `open_red_packet`: 点击打开好友发送的红包
-- `language_detector`:微信当前使用语言检测(不能禁用WeChatAppex.exe(涉及到公众号,微信内置浏览器,视频号等功能),原理是查询WeChatAppex.exe命令行参数)
-<br>
+## 项目结构
 
-### pyweixin使用示例:
-#### 所有自动化操作只需两行代码即可实现，即：
-```
-from pyweixin import xxx
-xxx.yy
-```
-<br>
-
-
-#### 多线程监听消息
-```
-#多线程打开多个好友窗口进行消息监听
-from concurrent.futures import ThreadPoolExecutor
-from pyweixin import Navigator,Monitor
-#先打开所有好友的独立窗口
-dialog_windows=[]
-friends=['Hello,Mr Crab','Pywechat测试群',]
-durations=['1min']*len(friends)
-#不添加其他参数Monitor.listen_on_chat,比如save_photos,该操作涉及键鼠,无法多线程，只是监听消息，获取文本内容,移动保存文件还是可以的
-for friend in friends:
-dialog_window=Navigator.open_seperate_dialog_window(friend=friend,window_minimize=True,close_weixin=True)#window_minimize独立窗口最小化
-    dialog_windows.append(dialog_window)
-with ThreadPoolExecutor(max_workers=len(friends)) as pool:
-    results=pool.map(lambda args: Monitor.listen_on_chat(*args),list(zip(dialog_windows,durations)))
-for friend,result in zip(friends,results):
-    print(friend,result)
-```
-<br>
-
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/listen_on_chat多线程.png)
-
-<br>
-
-#### 多线程监听消息并自动回复
-```
-from pyweixin import Navigator
-from concurrent.futures import ThreadPoolExecutor
-from pyweixin import Navigator,AutoReply
-#自动回复函数传入参数是字符串和字符串列表(消息列表内所有可见的文本,可作为上下文),返回值须为字符串类型
-def reply_func1(newMessage:str,contexts:list[str]):
-    if '你好' in newMessage:
-        return '你好,有什么可以帮您的吗[呲牙]?'
-    if '在吗' in message:
-        return '在的[旺柴]'
-    return '自动回复[微信机器人]:您好,我当前不在,请您稍后再试'
-
-def reply_func2(newMessage:str,contexts:list[str]):
-    return '自动回复[微信机器人]:您好,我当前不在,请您稍后再试'
-
-#先打开所有好友的独立窗口
-dialog_windows=[]
-friends=['abcdefghijklmnopqrstuvwxyz123456','Pywechat测试群']
-for friend in friends:
-    dialog_window=Navigator.open_seperate_dialog_window(friend=friend,window_minimize=True,close_weixin=True)
-    dialog_windows.append(dialog_window)
-durations=['1min','1min']
-callbacks=[reply_func1,reply_func2]
-with ThreadPoolExecutor() as pool:
-    results=pool.map(lambda args: AutoReply.auto_reply_to_friend(*args),list(zip(dialog_windows,durations,callbacks)))
-for friend,result in zip(friends,results):
-    print(friend,result)
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/自动回复.png)
-
-<br>
-
-#### 监听单个聊天窗口消息
-```
-from pyweixin import Navigator,Monitor
-dialog_window=Navigator.open_seperate_dialog_window(friend='啦啦啦')
-result=Monitor.listen_on_chat(dialog_window=dialog_window,duration='30s')
-print(result)#返回值 {'新消息总数':x,'文本数量':x,'文件数量':x,'图片数量':x,'视频数量':x,'链接数量':x,'文本内容':x}
+```text
+.
+├── client_api/              # 后端接口客户端，含登录、聊天、好友同步、checkOnline 等封装
+├── wechat_bot/              # GUI 与业务自动化脚本
+│   ├── pyqt_app.py          # PyQt 控制台入口
+│   ├── auto_reply_unread.py # 未读消息监听与自动回复
+│   ├── add_friend_by_phone.py
+│   ├── open_wechat_window.py
+│   └── ...
+├── pyweixin/                # WeChat 4.1+ 自动化模块
+├── pywechat/                # WeChat 3.9 兼容模块
+├── inspcet/                 # Windows UI Inspect 工具
+├── installer/               # NSIS 安装包配置
+├── scripts/                 # 打包脚本
+├── pics/                    # 文档图片资源
+├── .env.example             # 环境变量模板
+├── pywechat_bot_gui.spec    # PyInstaller 固定打包配置
+└── requirements*.txt        # 运行与 GUI 依赖
 ```
 
-<br>
+注意：不要再使用气泡左右几何位置判断是否为己方消息。微信 4.1 的 UI 结构下该方式不稳定，容易误判。
 
-#### 朋友圈数据获取
-```
-from pyweixin import Moments
-posts=Moments.dump_recent_posts(recent='Today')
-for dic in posts:
-    print(dic)
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/朋友圈数据获取.png)
+## 快速开始
 
-<br>
+创建并激活虚拟环境：
 
-#### 发布朋友圈
-```
-from pyweixin import Moments
-Moments.post_moments(texts='''发布朋友圈测试[旺柴]''',medias=[r"E:\Desktop\test0.png",r"E:\Desktop\test1.png"])
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/发朋友圈.png)
-
-<br>
-
-#### 好友朋友圈内容导出
-```
-from pyweixin import Moments
-Moments.dump_friend_posts(friend='xxx',number=3,save_detail=True,target_folder=r"E:\Desktop\好友朋友圈内容导出")
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/好友朋友圈内容导出.png)
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/好友朋友圈内容.png)
-
-<br>
-
-#### 好友朋友圈自定义评论
-```
-from pyweixin import Moments
-def comment_func(content):
-    if 'xxx' in content:
-        return 'yyy'
-    return 'zzz'
-Moments.like_friend_posts(friend='xxx',number=20,callback=comment_func,use_green_send=True)
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-<br>
+安装依赖：
 
-#### 此外pyweixin内所有方法及函数的一些位置参数支持全局设定,be like:
-```
-from pyweixin import Navigator,GlobalConfig
-GlobalConfig.load_delay=2.5
-GlobalConfig.is_maximize=True
-GlobalConfig.close_weixin=False
-Navigator.search_channels(search_content='微信4.0')
-Navigator.search_miniprogram(name='问卷星')
-Navigator.search_official_account(name='微信')
-```
-<br>
-
-#### 公众号文章url获取
-```
-from pyweixin import Collections
-Collections.collect_offAcc_articles(name='新华社',number=10)
-urls=Collections.cardLink_to_url(number=10)
-for url,text in urls.items():
-    print(f'{text}\n{url}')
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/公众号文章url获取.png)
-
-<br>
-
-#### 其他类内method使用方法可见代码中详细的文档注释以及pyweixin操作手册.docx
-<br>
-
-### Pywechat模块介绍
-### (3.9+微信)
-#### WechatTools🌪️🌪️
-##### 模块包括:
-##### Tools:关于PC微信的一些工具,包括打开PC微信内各个界面的open系列方法。
-##### API:打开指定微信小程序，指定公众号,打开视频号的功能，若有其他开发者想自动化操作上述程序可调用此API。
-##### 函数:该模块内所有函数与方法一致。
-<br>
-
-#### WechatAuto🛏️🛏️
-##### 模块包括：
-- `Messages`: 5种类型的发送消息方法，包括:单人单条,单人多条,多人单条,多人多条,转发消息:多人同一条。 
-- `Files`: 5种类型的发送文件方法，包括:单人单个,单人多个,多人单个,多人多个,转发文件:多人同一个。发送多个文件时，你只需将所有文件放入文件夹内，将文件夹路径传入即可。
-- `FriendSettings`: 涵盖了PC微信针对某个好友的全部操作的方法。
-- `GroupSettings`: 涵盖了PC微信针对某个群聊的全部操作的方法。
-- `Contacts`: 获取3种类型通讯录好友的备注与昵称包括:微信好友,企业号微信,群聊名称与人数，数据返回格式为json。
-- `Call`: 给某个好友打视频或语音电话。
-- `AutoReply`:自动接听微信视频或语音电话,自动回复指定好友消息,自动回复所有好友消息。
-- `Moments`:针对微信朋友圈的一些方法,包括数据获取，图片视频导出
-##### 函数:该模块内所有函数与方法一致。  
-<br>
-
-#### WinSettings🔹🔹
-##### 模块包括：
-##### Systemsettings:该模块中提供了一些修改windows系统设置的方法。
-##### 函数：该模块内所有函数与方法一致。
-<br>
-
-### pywechat使用示例:
-#### 所有自动化操作只需两行代码即可实现，即：
-```
-from pywechat import xxx
-xxx.yy
-
-from pyweixin import xxx
-xxx,yy
+```powershell
+pip install -r requirements.txt
+pip install -r requirements-gui.txt
 ```
 
-<br>
+以可编辑模式安装：
 
-#### 在某个群聊自动回复(使用装饰器自定义回复内容)
-```
-from pywechat.utils import auto_reply_to_group_decorator
-@auto_reply_to_group_decorator(duration='2min',group_name='Pywechat测试群',at_only=True,at_other=True)
-def reply_func(newMessage):
-    if '你好' in newMessage:
-        return '你好,请问有什么可以帮您的吗?'
-    if '在吗' in newMessage:
-        return '在的,请问有什么可以帮您的吗?'
-    if '售后' in newMessage:
-        return '''您好，您可以点击下方链接申请售后:
-        https://github.com/Hello-Mr-Crab/pywechat'''
-    if '算了' in newMessage or '不需要了' in newMessage:
-        return '不好意思.未能为您提供满意的服务,欢迎下次光临'
-    return '不好意思，未能理解您的需求'#最后总是要返回一个值，不要出现newMessage不在列举的情况,返回None
-reply_func()
-```
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/decorator.png)
-<br>
-
-#### 监听某个群聊或好友的窗口(自动保存聊天文件与图片和视频)
-```
-from pywechat import listen_on_chat
-filesave_folder=r"E:\Desktop\保存文件"
-mediasave_folder=r"E:\Desktop\聊天图片与视频保存"
-contents,senders,types=listen_on_chat(friend='测试群',duration='10min',save_file=True,file_folder=filesave_folder,save_media=True,media_folder=mediasave_folder)
-print(contents,senders,types)
+```powershell
+pip install -e .
 ```
 
-#### 朋友圈数据获取
-```
-from pywechat import dump_recent_moments
-moments=dump_recent_moments(recent='Today')
-for dict in moments:
-    print(dict)
+运行 GUI：
+
+```powershell
+python .\wechat_bot\pyqt_app.py
 ```
 
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/dump_moments.png)
-<br>
-##### 注意，导出的结果为list[dict],每一条朋友圈对应一个dict,dict具体内容为:
-{'好友备注':'','发布时间':'','文本内容':'','点赞者':'','评论内容':'','图片数量':'','视频数量':'','卡片链接':'','卡片链接内容':'','视频号':'','公众号链接内容':''}
+最小导入检查：
 
-<br>
-
-#### 监听整个会话列表内所有好友的新消息(自动保存聊天文件)
-```
-from pywechat import check_new_message
-filesave_folder=r"E:\Desktop\文件保存"
-newMessages=check_new_message(duration='5min',save_file=True,target_folder=filesave_folder)
-#newMessages是[{'好友名称':'路人甲','好友类型':'群聊,好友或公众号','新消息条数':xx,'消息内容':[],'消息类型':[]}]
-#格式的list[dict]
+```powershell
+python -c "from pyweixin import Navigator"
+python -c "from pywechat import Tools"
 ```
 
-#### 转发与某个好友的一定数量文件给其他好友
- ```
- #注意:微信转发消息单次上线为9,pywechat内转发消息,文件,链接,小程序等支持多个好友按9个为一组分批发送
- from pywechat import forward_files
- others=['路人甲','路人乙','路人丙','路人丁']
- forward_files(friend='测试群',others=others,number=20)
- ```
-#### 保存指定数量聊天文件到本地]
-```
-from pywechat import save_files
-folder_path=r'E:\Desktop\新建文件夹'
-save_files(friend='测试群',number=20,folder_path=folder_path)
-```
-#### 群聊内自动回复(被@时触发)
-```
-from pywechat import auto_reply_to_group
-auto_reply_to_group(group_name='测试群',duration='20min',content='我被@了',at_only=True,at_others=True)
+说明：`pywechat` 主要服务旧版 32 位微信场景。如果当前环境不满足旧版模块要求，优先使用 `pyweixin` 与 `wechat_bot`。
+
+## 接口配置
+
+本项目不在代码中硬编码真实后端地址。运行前复制环境变量模板：
+
+```powershell
+Copy-Item .\.env.example .\.env
+notepad .\.env
 ```
 
-![image](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/auto_reply_to_group.png)
+配置示例：
 
-<br>
-
-#### 给某个好友发送多条信息：
-```
-from pywechat.WechatAuto import Messages
-Messages.send_messages_to_friend(friend="文件传输助手",messages=['你好','我正在使用pywechat操控微信给你发消息','收到请回复'])
-```
-##### 或者
-```
-import pywechat.WechatAuto as wechat
-wechat.send_messages_to_friend(friend="文件传输助手",messages=['你好','我正在使用pywechat操控微信给你发消息','收到请回复'])
+```env
+PYWECHAT_ENV=prod
+PYWECHAT_API_BASE_URL=https://example.com/api
+PYWECHAT_CHECK_ONLINE_BASE_URL=https://example.com/api
 ```
 
-<br>
+`.env` 只用于本机配置，不要提交到 Git。仓库已通过 `.gitignore` 忽略 `.env`、日志、缓存、虚拟环境和构建产物。
 
-### 多任务使用示例
-#### 注意,微信不支持多线程，只支持单线程多任务轮流执行，pywechat也支持单线程多任务轮流执行，在运行多个实例时尽量请将所有函数与方法内的close_wechat参数设为False(默认为True)
-#### 这样只需要打开一次微信，多个任务便可以共享资源,更加高效，否则，每个实例在运行时都会重启一次微信，较为低效。
-#### 注意,不要对pywechat内函数或方法使用多线程,因为微信只能打开一个,多个线程同时操作一个微信界面,必然产生死锁,会导致界面卡死!
-<br>
+API 日志会自动脱敏 `token`、`Authorization`、`password`、`device_id`、`secret` 等字段。仍建议不要在 issue、PR 或截图中公开账号、手机号、微信号、聊天内容、接口地址和日志原文。
 
-```
-from pywechat.WechatAuto import Messages,Files
-Messages.send_messages_to_friend(friend='好友1',messages=['在测试','ok'],close_wechat=False)
-Files.send_files_to_friend(friend='文件传输助手',folder_path=r"E:\OneDrive\Desktop\测试专用",with_messages=True,messages_first=True,messages=['在测试文件消息一起发，你应该先看到这条消息，后看到文件'],close_wechat=True)
+## GUI 功能
+
+GUI 入口为：
+
+```powershell
+python .\wechat_bot\pyqt_app.py
 ```
 
+主要封装：
 
-##### 自动回复效果:
+- 检查微信登录状态。
+- 打开/恢复微信主窗口。
+- 自动回复未读消息。
+- 通过接口读取手机号并添加好友。
+- 好友资料与头像同步。
+- 定时/批量消息相关辅助流程。
 
-![Alt text](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/Ai接入实例.png)
+自动回复流程会调用 `/autoWx/chat`，并在日志中输出 `[AUTO] 聊天接口参数`，用于确认传给后端的业务字段。日志不会输出 token/header 明文。
 
-### 检查新消息示例
-<br>
+## 自动回复注意事项
 
+- 自动回复运行时应避免人工频繁切换微信窗口。
+- 微信 UIA 控件树可能因右键菜单、窗口失焦、系统缩放、微信更新等原因短暂不可用。
+- 程序会在调用聊天接口前先做目标消息校验，避免将己方消息、系统消息或异常文本误发给后端。
+- `Traceback ... File "...", line ...` 等程序异常文本会被视为不可自动回复内容并跳过。
+- GUI 启动自动回复时默认带 `--keep-open`，停止自动回复不会主动关闭微信窗口。
+
+## WeChat 4.1+ UI 说明
+
+微信 4.1+ 的 UI 自动化可见性与系统可访问性能力有关。实践中，先于微信登录前开启 Windows 讲述人并保持一段时间，可能帮助 UI Automation 暴露更多控件。该行为依赖系统与微信版本，不保证长期稳定。
+
+Windows UI Automation 是可访问性 API，设计上需要向屏幕阅读器暴露 UI 元素信息。微信版本变更后，控件树、类名、菜单项、输入框、会话列表结构都可能变化，因此任何 UI 自动化逻辑都应保守处理异常并保留人工验证。
+
+企业微信等产品可能采用不同 UI 策略，本项目不保证可复用。
+
+## pyweixin 模块概览
+
+`pyweixin` 面向 WeChat 4.1+：
+
+- `Navigator`：打开微信内部界面、会话、独立聊天窗口等。
+- `Tools`：微信路径、运行状态、窗口与 UI 辅助工具。
+- `Messages`：消息发送、聊天记录获取、会话导出等。
+- `Files`：文件发送与聊天文件导出。
+- `Contacts`：通讯录、好友信息、共同群聊等。
+- `Moments`：朋友圈获取、发布、互动相关能力。
+- `Monitor`：监听聊天窗口消息。
+- `AutoReply`：自动回复相关能力。
+- `SystemSettings`：自动化过程中需要的 Windows 设置辅助。
+
+示例：
+
+```python
+from pyweixin import Navigator, Monitor
+
+dialog = Navigator.open_seperate_dialog_window(
+    friend="文件传输助手",
+    window_minimize=False,
+    close_weixin=False,
+)
+result = Monitor.listen_on_chat(dialog_window=dialog, duration="30s")
+print(result)
 ```
-from pywechat import check_new_message
-print(check_new_message())
+
+## pywechat 兼容模块概览
+
+`pywechat` 面向 WeChat 3.9 时代，保留旧版自动化能力：
+
+- `Messages`：单人/多人消息发送、转发消息。
+- `Files`：单人/多人文件发送、转发文件。
+- `Contacts`：好友、企业微信联系人、群聊信息获取。
+- `FriendSettings` / `GroupSettings`：好友与群聊设置。
+- `Moments`：朋友圈数据获取、图片视频导出。
+- `AutoReply`：自动回复、接听语音或视频电话等。
+
+旧版微信和 32 位环境限制较多，使用前请确认当前 Python 位数、微信版本和操作系统匹配。
+
+## 打包 GUI
+
+先清理缓存：
+
+```powershell
+Remove-Item -Recurse -Force .\build, .\dist, .\__pycache__, .\wechat_bot\__pycache__ -ErrorAction SilentlyContinue
+Get-ChildItem -Recurse -Filter *.pyc | Remove-Item -Force -ErrorAction SilentlyContinue
 ```
 
-##### 检查新消息效果：
+推荐使用固定 spec 打包：
 
-![Alt text](https://github.com/Hello-Mr-Crab/pywechat/blob/main/pics/check_new_message.gif)
+```powershell
+python -m PyInstaller --noconfirm --clean .\pywechat_bot_gui.spec
+```
 
-##### 若你开启了语音自动转消息功能后,新消息中含有语音消息的话,可以将其转换结果一并记录。（1.9.7版本支持此功能）
-## 注意:
-👎👎请勿将pywechat用于任何非法商业活动,因此造成的一切后果由使用者自行承担！ 
+也可以手动执行：
 
-###### 作者CSDN主页:https://blog.csdn.net/weixin_73953650?spm=1011.2415.3001.5343
+```powershell
+python -m PyInstaller --noconfirm --clean --onedir --windowed ^
+  --name pywechat_bot_gui ^
+  --paths . ^
+  --hidden-import wechat_bot.check_wechat_status ^
+  --hidden-import wechat_bot.open_wechat_window ^
+  --hidden-import wechat_bot.auto_reply_unread ^
+  --hidden-import wechat_bot.add_friend_by_phone ^
+  --exclude-module pywechat ^
+  .\wechat_bot\pyqt_app.py
+```
+
+产物：
+
+```text
+dist\pywechat_bot_gui\pywechat_bot_gui.exe
+```
+
+## 生成安装包
+
+先确认 NSIS 已安装，并可在命令行访问 `makensis.exe`。然后执行：
+
+```powershell
+python .\scripts\build_installer.py
+```
+
+常用参数：
+
+```powershell
+python .\scripts\build_installer.py --skip-pyinstaller
+python .\scripts\build_installer.py --makensis "C:\Program Files (x86)\NSIS\makensis.exe"
+python .\scripts\build_installer.py --app-version 1.9.9
+python .\scripts\build_installer.py --out-name "PyWechatBotInstaller_v1.9.9.exe"
+```
+
+安装包配置文件：
+
+```text
+installer\build_config.toml
+```
+
+## 开发规范
+
+- 使用 4 空格缩进，源码保持 UTF-8。
+- 保持既有命名风格，例如 `WeChatAuto.py`、`WeChatTools.py`、`Messages`、`Navigator`。
+- 新增公开接口优先保持静态方法风格：`Class.method(...)`。
+- 修改公开方法时尽量补充类型注解。
+- 不要提交聊天导出数据、账号标识、本机绝对路径、接口 token、`.env` 或日志文件。
+- 涉及 UI 行为变更时，请记录验证环境：Windows 版本、微信版本、语言、窗口状态、系统缩放。
+
+## 测试与验证
+
+当前仓库未提供正式 `tests/` 目录。建议至少执行：
+
+```powershell
+python -m py_compile client_api\client.py wechat_bot\auto_reply_unread.py wechat_bot\pyqt_app.py
+python -c "from pyweixin import Navigator"
+```
+
+功能验证应在已登录微信的真实 Windows 环境完成。涉及自动回复、文件发送、好友添加等流程时，先使用测试账号和测试会话。
+
+## 常见问题
+
+### WinError 10061
+
+`WinError 10061` 表示目标地址或端口拒绝连接，通常是后端服务未启动、端口不通、域名解析错误、代理/防火墙拦截或服务未监听对应端口。
+
+可在 Windows 上检查：
+
+```powershell
+Test-NetConnection your-api-host.example.com -Port 443
+```
+
+### PyInstaller modulegraph / dis.py 报错
+
+如果打包时出现 `IndexError: tuple index out of range`，优先升级 Python 到 `3.10.11+` 或 `3.11.x`，并升级打包工具：
+
+```powershell
+pip install -U pyinstaller pyinstaller-hooks-contrib
+```
+
+然后清理缓存后重新打包。
+
+## 许可证与责任
+
+请遵守原项目许可证、微信平台规则、当地法律法规与数据合规要求。使用者应自行承担自动化行为、账号风险、数据处理、接口调用和业务后果。
+
+再次强调：禁止将本项目用于任何非法商业活动，因此造成的一切后果由使用者自行承担。
