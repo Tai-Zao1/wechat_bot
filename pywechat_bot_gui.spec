@@ -12,6 +12,12 @@ hiddenimports = [
     "wechat_bot.auto_reply_unread",
     "wechat_bot.add_friend_by_phone",
     "wechat_bot.local_bailian",
+    "wechat_bot.scripts",
+    "wechat_bot.scripts.registry",
+    "wechat_bot.scripts.check_wechat",
+    "wechat_bot.scripts.open_wechat",
+    "wechat_bot.scripts.auto_reply",
+    "wechat_bot.scripts.add_friends",
 ]
 
 

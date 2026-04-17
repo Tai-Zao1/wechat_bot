@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-"""兼容旧导入路径的本人资料缓存入口。"""
+"""旧本人资料缓存导入路径兼容层。"""
 
-from __future__ import annotations
-
-from wechat_bot.compat.self_profile import (
+from wechat_bot.runtime import (
     EMPTY_SELF_PROFILE,
     fetch_self_profile,
     get_self_profile,

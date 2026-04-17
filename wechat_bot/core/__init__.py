@@ -1,4 +1,16 @@
-"""wechat_bot 公共配置、路径与类型定义。"""
+"""wechat_bot 公共基础层。
+
+这里聚合四类能力：
+
+1. 路径
+   本地缓存、日志、调度目录。
+2. 运行策略
+   自动回复节流、任务优先级、锁超时。
+3. 网络配置
+   读取和环境变量相关的基础地址。
+4. 类型
+   `FriendProfile`、`SelfProfile`。
+"""
 
 from .paths import (
     get_bot_app_root,
@@ -10,7 +22,7 @@ from .paths import (
     get_current_wxid_key,
     sanitize_file_piece,
 )
-from .settings import (
+from .runtime_policy import (
     AUTO_REPLY_ACTIVE_COOLDOWN_MAX_S,
     AUTO_REPLY_ACTIVE_COOLDOWN_MIN_S,
     AUTO_REPLY_POLL_INTERVAL_S,
@@ -20,6 +32,8 @@ from .settings import (
     PENDING_STALE_SECONDS,
     PRIORITY_ORDER,
     UI_LOCK_STALE_SECONDS,
+)
+from .network import (
     get_check_online_base_url,
 )
 from .types import FriendProfile, SelfProfile

@@ -15,7 +15,7 @@ import traceback
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from PyQt5.QtCore import QProcess, QProcessEnvironment, QSettings, QSize, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
@@ -60,16 +60,17 @@ from wechat_bot.common import (
     load_json_dict,
     write_json_file,
 )
-from wechat_bot.friend_messaging_service import (
+from wechat_bot.core import get_bot_app_root, get_bot_data_dir, get_bot_logs_dir
+from wechat_bot.services import (
+    DEFAULT_BAILIAN_ENDPOINT,
+    DEFAULT_BAILIAN_SYSTEM_PROMPT,
     fetch_friend_names,
     fetch_friend_profiles,
-    run_timed_send_loop,
-    get_bot_app_root,
-    get_bot_data_dir,
     get_cached_friend_names,
-    get_bot_logs_dir,
+    get_cached_friend_profiles,
+    run_timed_send_loop,
 )
-from wechat_bot.local_bailian import DEFAULT_BAILIAN_ENDPOINT, DEFAULT_BAILIAN_SYSTEM_PROMPT
+from wechat_bot.scripts import resolve_script_spec
 
 try:
     import win32gui  # type: ignore
@@ -130,7 +131,7 @@ def ensure_win32com_cache_writable() -> None:
 
 class _SignalWriter(io.TextIOBase):
     """把脚本标准输出转成 Qt 信号，便于在 GUI 日志面板展示。"""
-    def __init__(self, emit_func):
+    def __init__(self, emit_func: Callable[[str], None]) -> None:
         super().__init__()
         self._emit = emit_func
 
@@ -590,7 +591,7 @@ class LoginWindow(QDialog):
         self.password_input.clear()
         self.accept()
 
-    def paintEvent(self, event) -> None:  # type: ignore[override]
+    def paintEvent(self, event: Any) -> None:  # type: ignore[override]
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -619,39 +620,29 @@ class LoginWindow(QDialog):
 
 def run_embedded_script(script_name: str, script_args: list[str]) -> int:
     """在当前进程中执行脚本 main()，用于打包后子命令模式。"""
-    # 这些脚本会导入 pyweixin -> win32com，先确保 gencache 可写
-    if script_name in {
-        "check_wechat_status.py",
-        "open_wechat_window.py",
-        "auto_reply_unread.py",
-        "add_friend_by_phone.py",
-    }:
-        ensure_win32com_cache_writable()
-
-    module_name_map = {
-        "check_wechat_status.py": "check_wechat_status",
-        "open_wechat_window.py": "open_wechat_window",
-        "auto_reply_unread.py": "auto_reply_unread",
-        "add_friend_by_phone.py": "add_friend_by_phone",
-    }
-    base_name = module_name_map.get(script_name)
-    if not base_name:
+    spec = resolve_script_spec(script_name)
+    if spec is None:
         print(f"[EMBED] 未知脚本: {script_name}")
         return 2
+
+    # 这些脚本会导入 pyweixin -> win32com，先确保 gencache 可写
+    if spec.requires_win32com_cache:
+        ensure_win32com_cache_writable()
+
     module = None
-    for candidate in (base_name, f"wechat_bot.{base_name}"):
+    for candidate in spec.module_names:
         try:
             module = importlib.import_module(candidate)
             break
         except ModuleNotFoundError:
             continue
     if module is None:
-        print(f"[EMBED] 无法导入模块: {base_name}")
+        print(f"[EMBED] 无法导入模块: {spec.display_name}")
         return 2
 
     old_argv = sys.argv[:]
     try:
-        sys.argv = [script_name] + script_args
+        sys.argv = [spec.script_name] + script_args
         return int(module.main())
     finally:
         sys.argv = old_argv
@@ -754,9 +745,8 @@ class MainWindow(QMainWindow):
         self._load_shortlink_rules_to_editor()
         self.append_log(f"GUI日志文件: {self.log_file_path}")
         self.append_log(f"当前运行模式: {'API模式' if self.run_mode == 'api' else '本地模式'}")
-        # 旧逻辑：启动时从本地缓存恢复好友列表。
-        # self._load_friend_list_from_cache_on_startup()
-        self.append_log("启动时不再自动读取本地好友缓存，请点击“加载好友列表”实时获取。")
+        self._load_friend_list_from_cache_on_startup()
+        self.append_log("如需最新好友数据，请点击“加载好友列表”实时刷新。")
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
@@ -1109,7 +1099,7 @@ class MainWindow(QMainWindow):
 
     def _resolve_current_api_wechat_id(self) -> str:
         try:
-            from wechat_bot.self_profile_cache import get_self_profile
+            from wechat_bot.runtime.self_profile import get_self_profile
 
             profile = get_self_profile()
             wechat_id = str(profile.get("wechat_id") or "").strip()
@@ -1170,7 +1160,7 @@ class MainWindow(QMainWindow):
             self._write_log_file_line(line)
         self.log_output.verticalScrollBar().setValue(self.log_output.verticalScrollBar().maximum())
 
-    def _show_log_context_menu(self, pos) -> None:
+    def _show_log_context_menu(self, pos: Any) -> None:
         menu = QMenu(self)
         clear_action = menu.addAction("清空日志")
         chosen = menu.exec_(self.log_output.mapToGlobal(pos))
@@ -1215,9 +1205,14 @@ class MainWindow(QMainWindow):
         keep_ref: bool = True,
         extra_env: dict[str, str] | None = None,
     ) -> QProcess | None:
+        spec = resolve_script_spec(script_name)
+        if spec is None:
+            QMessageBox.critical(self, "启动失败", f"未知脚本: {script_name}")
+            return None
+
         # 打包环境中，短任务改为进程内线程执行，避免 onefile 子进程反复创建临时目录失败。
-        if getattr(sys, "frozen", False) and script_name != "auto_reply_unread.py":
-            self._start_embedded_worker(script_name, args)
+        if getattr(sys, "frozen", False) and spec.script_name != "auto_reply_unread.py":
+            self._start_embedded_worker(spec.script_name, args)
             return None
 
         process = QProcess(self)
@@ -1237,24 +1232,24 @@ class MainWindow(QMainWindow):
             lambda: self._handle_process_output(process, script_name, is_stderr=True)
         )
         process.finished.connect(
-            lambda code, status: self.append_log(f"{script_name} 结束，退出码={code} 状态={int(status)}")
+            lambda code, status: self.append_log(f"{spec.script_name} 结束，退出码={code} 状态={int(status)}")
         )
 
         if getattr(sys, "frozen", False):
             # 打包后，直接复用当前 exe 作为子进程，避免依赖外部 Python。
-            process.start(sys.executable, ["--run-script", script_name] + args)
+            process.start(sys.executable, ["--run-script", spec.script_name] + args)
         else:
             python_exe = sys.executable
-            script_path = BASE_DIR / script_name
+            script_path = BASE_DIR / spec.relative_path
             if not script_path.exists():
                 QMessageBox.critical(self, "文件缺失", f"脚本不存在: {script_path}")
                 return None
             process.start(python_exe, [str(script_path)] + args)
         if not process.waitForStarted(5000):
-            QMessageBox.critical(self, "启动失败", f"无法启动脚本: {script_name}")
+            QMessageBox.critical(self, "启动失败", f"无法启动脚本: {spec.script_name}")
             return None
 
-        self.append_log(f"已启动: {script_name} {' '.join(self._sanitize_process_args(args))}")
+        self.append_log(f"已启动: {spec.script_name} {' '.join(self._sanitize_process_args(args))}")
         if keep_ref:
             self.child_processes.append(process)
         return process
@@ -1456,14 +1451,22 @@ class MainWindow(QMainWindow):
 
     def _load_friend_list_from_cache_on_startup(self) -> None:
         try:
+            profiles = get_cached_friend_profiles(wxid=self.current_wxid)
+        except Exception:
+            profiles = []
+        if profiles:
+            self._on_friend_list_loaded(profiles)
+            self.append_log(f"已从本地缓存恢复好友资料 {len(profiles)} 人")
+            return
+        try:
             names = get_cached_friend_names(wxid=self.current_wxid)
         except Exception:
             names = []
-        if not names:
-            self.append_log("本地好友缓存为空，点击“加载好友列表”进行获取")
+        if names:
+            self._on_friend_list_loaded(names)
+            self.append_log(f"已从本地缓存恢复好友列表 {len(names)} 人")
             return
-        self._on_friend_list_loaded(names)
-        self.append_log(f"已从本地缓存恢复好友列表 {len(names)} 人")
+        self.append_log("本地好友缓存为空，点击“加载好友列表”进行获取")
 
     def _on_friend_list_loaded(self, profiles: list) -> None:
         self.friend_list_widget.clear()
@@ -1777,7 +1780,7 @@ class MainWindow(QMainWindow):
 
         candidates: list[int] = []
 
-        def _enum_cb(hwnd, _lparam) -> None:
+        def _enum_cb(hwnd: int, _lparam: object) -> None:
             try:
                 if not win32gui.IsWindowVisible(hwnd):
                     return
@@ -2199,7 +2202,7 @@ class MainWindow(QMainWindow):
             self.add_friend_process.kill()
             self.add_friend_process.waitForFinished(2000)
 
-    def closeEvent(self, event) -> None:  # noqa: N802
+    def closeEvent(self, event: Any) -> None:  # noqa: N802
         if self.narrator_countdown_timer is not None:
             self.narrator_countdown_timer.stop()
             self.narrator_countdown_timer.deleteLater()

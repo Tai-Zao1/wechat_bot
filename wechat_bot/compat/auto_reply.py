@@ -1,8 +1,6 @@
-"""兼容旧导入路径的自动回复辅助入口。"""
+"""旧自动回复辅助导入路径兼容层。"""
 
-from __future__ import annotations
-
-from wechat_bot.compat.auto_reply import (
+from wechat_bot.scripts.auto_reply_support import (
     AUTO_REPLY_CACHE_FILENAME,
     AUTO_REPLY_RECENT_CACHE_FILENAME,
     AUTO_REPLY_SELF_SENT_CACHE_FILENAME,

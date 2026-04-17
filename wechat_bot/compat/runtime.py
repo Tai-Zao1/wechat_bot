@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-"""兼容旧导入路径的运行时调度入口。"""
+"""旧运行时调度导入路径兼容层。"""
 
-from __future__ import annotations
-
-from wechat_bot.compat.runtime import (
+from wechat_bot.runtime import (
     claim_task_runtime,
     hold_wechat_ui,
     refresh_task_runtime,

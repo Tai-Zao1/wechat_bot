@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-"""兼容旧导入路径的本地百炼入口。"""
+"""旧本地 AI 导入路径兼容层。"""
 
-from __future__ import annotations
-
-from wechat_bot.compat.local_ai import (
+from wechat_bot.services import (
     DEFAULT_BAILIAN_ENDPOINT,
     DEFAULT_BAILIAN_SYSTEM_PROMPT,
     LocalBailianClient,

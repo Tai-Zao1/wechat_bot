@@ -1099,7 +1099,7 @@ class Navigator():
             search_results=main_window.child_window(**Lists.SearchResult)#搜索结果列表
             search_result=Tools.get_search_result(friend=friend,search_result=search_results)
             search_mobile=search_results.children(**ListItems.MobileSearchListItem)#绿色的网络查找手机/QQ号选项
-            if search_result and not search_mobile:#有搜索结果没有网络查找qq号手机号选项
+            if search_result:#优先使用本地已有搜索结果,即使同时出现网络查找入口也不再落空返回None
                 search_result.click_input()
                 edit_area=main_window.child_window(**Edits.CurrentChatEdit)
                 if edit_area.exists(timeout=0.2) and edit_area.is_visible():
