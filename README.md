@@ -1,4 +1,4 @@
-# WeChat Bot / pywechat
+# WeChat Bot / pywechat （AI润色）
 
 这是一个基于 Windows UI Automation 与 `pywinauto` 的 PC 微信自动化项目，包含面向微信 4.1.8 封装的自动化能力以及 `wechat_bot` GUI 工具。项目不涉及逆向 Hook，主要通过可访问性控件树、键鼠操作和窗口控件识别完成自动化流程。
 
