@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""通过 API 批量读取手机号添加好友（调用 pyweixin）。"""
+"""通过 API 或本地 Excel 批量读取手机号添加好友（调用 pyweixin）。"""
 
 from __future__ import annotations
 
@@ -38,8 +38,10 @@ from wechat_bot.task_scheduler import (
 @dataclass(slots=True)
 class AddFriendArgs:
     """批量加好友脚本的运行参数。"""
+    source: str
     wechat_id: str
     api_path: str
+    excel_path: str
     greetings: str | None
     remark: str | None
     chat_only: bool
@@ -346,6 +348,108 @@ def fetch_pending_phones_from_api(args: AddFriendArgs) -> list[tuple[int, str]]:
     return [(idx + 1, phone) for idx, phone in enumerate(phones)]
 
 
+def _cell_text(value: object) -> str:
+    """把 Excel 单元格值转换为可解析文本。"""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _looks_like_phone_header(text: str) -> bool:
+    """判断 Excel 表头是否可能是手机号列。"""
+    normalized = text.strip().lower()
+    if not normalized:
+        return False
+    return any(key in normalized for key in ("手机号", "手机", "电话", "mobile", "phone", "tel"))
+
+
+def _looks_like_phone_value(text: str) -> bool:
+    """宽松判断单元格是否包含可添加的手机号。"""
+    digits = re.sub(r"\D", "", text)
+    if digits.startswith("0086"):
+        digits = digits[4:]
+    elif digits.startswith("86") and len(digits) > 11:
+        digits = digits[2:]
+    return 6 <= len(digits) <= 20
+
+
+def fetch_pending_phones_from_excel(path: str) -> list[tuple[int, str]]:
+    """从 Excel 读取待添加手机号，优先识别手机号表头列。"""
+    excel_path = Path(path).expanduser()
+    if not excel_path.is_file():
+        raise RuntimeError(f"Excel文件不存在: {excel_path}")
+    try:
+        from openpyxl import load_workbook
+    except Exception as exc:
+        raise RuntimeError("缺少 openpyxl 依赖，请先安装 requirements-gui.txt") from exc
+
+    workbook = load_workbook(excel_path, read_only=True, data_only=True)
+    try:
+        sheet = workbook.active
+        rows = list(sheet.iter_rows(values_only=True))
+    finally:
+        workbook.close()
+
+    if not rows:
+        return []
+
+    phone_col: int | None = None
+    header_row_idx = 0
+    for row_idx, row in enumerate(rows[:10], start=1):
+        for col_idx, value in enumerate(row):
+            if _looks_like_phone_header(_cell_text(value)):
+                phone_col = col_idx
+                header_row_idx = row_idx
+                break
+        if phone_col is not None:
+            break
+
+    items: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    if phone_col is not None:
+        for row_idx, row in enumerate(rows[header_row_idx:], start=header_row_idx + 1):
+            if phone_col >= len(row):
+                continue
+            text = _cell_text(row[phone_col])
+            if not text:
+                continue
+            try:
+                phone = normalize_phone(text)
+            except Exception:
+                continue
+            if phone in seen:
+                continue
+            seen.add(phone)
+            items.append((row_idx, text))
+    else:
+        for row_idx, row in enumerate(rows, start=1):
+            for value in row:
+                text = _cell_text(value)
+                if not text or not _looks_like_phone_value(text):
+                    continue
+                try:
+                    phone = normalize_phone(text)
+                except Exception:
+                    continue
+                if phone in seen:
+                    continue
+                seen.add(phone)
+                items.append((row_idx, text))
+                break
+
+    log("Excel读取", f"{excel_path} 获取到 {len(items)} 个待加手机号")
+    return items
+
+
+def fetch_pending_items(args: AddFriendArgs) -> list[tuple[int, str]]:
+    """按数据来源读取待添加手机号。"""
+    if args.source == "excel":
+        return fetch_pending_phones_from_excel(args.excel_path)
+    return fetch_pending_phones_from_api(args)
+
+
 def notify_wx_check_success(client: WeChatAIClient | None, wechat_id: str, mobile: str) -> tuple[bool, str]:
     """添加成功后回调后端，通知该手机号已完成 wxCheck。"""
     if client is None:
@@ -366,9 +470,9 @@ def notify_wx_check_success(client: WeChatAIClient | None, wechat_id: str, mobil
 def process_once(args: AddFriendArgs, owner_id: str) -> tuple[int, int, int, int, bool]:
     """处理一轮接口下发的手机号列表。"""
     processed_rows: set[int] = set()
-    callback_client = WeChatAIClient.from_saved_state(auto_persist=True)
-    callback_wechat_id = str(args.wechat_id or "").strip() or resolve_current_wechat_id()
-    pending_items = fetch_pending_phones_from_api(args)
+    callback_client = WeChatAIClient.from_saved_state(auto_persist=True) if args.source == "api" else None
+    callback_wechat_id = (str(args.wechat_id or "").strip() or resolve_current_wechat_id()) if args.source == "api" else ""
+    pending_items = fetch_pending_items(args)
     total_candidates = len(pending_items)
     effective_greetings = str(args.greetings or "").strip() or str(getattr(args, "api_system_prompt", "") or "").strip() or None
 
@@ -424,11 +528,14 @@ def process_once(args: AddFriendArgs, owner_id: str) -> tuple[int, int, int, int
 
         if ok:
             ok_count += 1
-            callback_ok, callback_reason = notify_wx_check_success(callback_client, callback_wechat_id, phone)
-            if callback_ok:
-                log("回调结果", f"行{row_idx} 手机号={phone} wxCheck 成功")
+            if args.source == "api":
+                callback_ok, callback_reason = notify_wx_check_success(callback_client, callback_wechat_id, phone)
+                if callback_ok:
+                    log("回调结果", f"行{row_idx} 手机号={phone} wxCheck 成功")
+                else:
+                    log("回调结果", f"行{row_idx} 手机号={phone} wxCheck 失败: {callback_reason}")
             else:
-                log("回调结果", f"行{row_idx} 手机号={phone} wxCheck 失败: {callback_reason}")
+                log("回调结果", f"行{row_idx} 手机号={phone} 本地Excel模式，跳过wxCheck回调")
         else:
             fail_count += 1
         log("添加结果", f"行{row_idx} 手机号={phone} 结果={result} 原因={reason} 下一个手机号={next_phone_text}")
@@ -451,9 +558,11 @@ def process_once(args: AddFriendArgs, owner_id: str) -> tuple[int, int, int, int
 
 def parse_args() -> AddFriendArgs:
     """解析命令行参数并转成显式的数据对象。"""
-    parser = argparse.ArgumentParser(description="通过 API 批量读取手机号添加微信好友")
+    parser = argparse.ArgumentParser(description="通过 API 或本地 Excel 批量读取手机号添加微信好友")
+    parser.add_argument("--source", choices=("api", "excel"), default="api", help="手机号来源：api 或 excel")
     parser.add_argument("--wechat-id", default="", help="接口模式下指定当前微信 wechatId（默认自动识别）")
     parser.add_argument("--api-path", default=DEFAULT_ADD_FRIEND_API_PATH, help="待加手机号接口路径前缀")
+    parser.add_argument("--excel-path", default="", help="Excel模式下的手机号文件路径（xlsx/xlsm）")
     parser.add_argument("--greetings", default=None, help="招呼语，例如 你好，我是XXX")
     parser.add_argument("--remark", default=None, help="备注名")
     parser.add_argument("--chat-only", action="store_true", help="朋友权限设为“仅聊天”")
@@ -474,8 +583,10 @@ def parse_args() -> AddFriendArgs:
     )
     ns = parser.parse_args()
     return AddFriendArgs(
+        source=str(ns.source or "api").strip(),
         wechat_id=str(ns.wechat_id or "").strip(),
         api_path=str(ns.api_path or "").strip() or DEFAULT_ADD_FRIEND_API_PATH,
+        excel_path=str(ns.excel_path or "").strip(),
         greetings=str(ns.greetings).strip() if ns.greetings is not None else None,
         remark=str(ns.remark).strip() if ns.remark is not None else None,
         chat_only=bool(ns.chat_only),
@@ -493,6 +604,7 @@ def main() -> int:
 
     log("时间", datetime.now().isoformat(timespec="seconds"))
     log("系统平台", platform.platform())
+    log("数据来源", "本地Excel" if args.source == "excel" else "后端API")
     if platform.system().lower() != "windows":
         log("状态", "非 Windows 环境，脚本退出")
         return 0
@@ -535,7 +647,7 @@ def main() -> int:
         processed_count, ok_count, fail_count, pending, _stopped = process_once(args, owner_id)
         log(
             "完成",
-            f"本次处理 {processed_count} 条，成功 {ok_count}，失败 {fail_count}，剩余 {pending} 条（接口模式）",
+            f"本次处理 {processed_count} 条，成功 {ok_count}，失败 {fail_count}，剩余 {pending} 条（{'Excel模式' if args.source == 'excel' else '接口模式'}）",
         )
         return 0
     finally:

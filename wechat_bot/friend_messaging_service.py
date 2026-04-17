@@ -115,23 +115,97 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
     return profiles
 
 
-def _fetch_names_from_session_items() -> list[str]:
+def _profiles_from_names(names: list[str]) -> list[FriendProfile]:
+    """把只有展示名的好友列表转换为统一资料结构。"""
+    return [
+        {"display_name": name, "remark": name, "nickname": "", "wechat_id": ""}
+        for name in names
+    ]
+
+
+def _extract_name_from_list_item(item: Any) -> str:
+    """从 WeChat 4.1.8 会话 ListItem 中提取展示名。"""
+    try:
+        aid = str(item.automation_id() or "").strip()
+    except Exception:
+        aid = ""
+    if aid.startswith("session_item_"):
+        name = aid.replace("session_item_", "", 1).strip()
+        if name:
+            return name
+
+    try:
+        text = str(item.window_text() or "").strip()
+    except Exception:
+        text = ""
+    if text and text not in {"会话", "聊天"}:
+        return text
+    return ""
+
+
+def _fetch_names_from_session_items(log: Callable[[str], None] | None = None) -> list[str]:
     """从主窗口会话列表项的 `automation_id` 回退提取好友名称。"""
-    from pyweixin.WeChatTools import Navigator
+    from pyweixin.WeChatTools import ListItems, Main_window, Navigator, SideBar
 
     main_window = Navigator.open_weixin(is_maximize=False)
     raw_names: list[str] = []
-    items = main_window.descendants(control_type="ListItem")
-    for item in items:
+
+    try:
+        chat_button = main_window.child_window(**SideBar.Chats)
+        if chat_button.exists(timeout=0.8):
+            chat_button.click_input()
+            time.sleep(0.2)
+    except Exception as exc:
+        if log is not None:
+            log(f"会话按钮点击失败，继续直接扫描: {exc}")
+
+    candidates: list[Any] = []
+    try:
+        session_list = main_window.child_window(**Main_window.SessionList)
+        if session_list.exists(timeout=1.0):
+            try:
+                session_list.type_keys("{HOME}")
+                time.sleep(0.1)
+            except Exception:
+                pass
+            candidates.extend(session_list.children(**ListItems.SessionListItem))
+            candidates.extend(session_list.descendants(control_type="ListItem"))
+    except Exception as exc:
+        if log is not None:
+            log(f"会话列表控件定位失败，继续扫描全窗口ListItem: {exc}")
+
+    try:
+        candidates.extend(main_window.descendants(control_type="ListItem"))
+    except Exception as exc:
+        if log is not None:
+            log(f"全窗口ListItem扫描失败: {exc}")
+
+    seen_handles: set[int] = set()
+    for item in candidates:
         try:
-            aid = str(item.automation_id() or "").strip()
+            handle = int(getattr(item, "handle", 0) or 0)
         except Exception:
-            aid = ""
-        if aid.startswith("session_item_"):
-            name = aid.replace("session_item_", "").strip()
-            if name:
-                raw_names.append(name)
+            handle = 0
+        if handle and handle in seen_handles:
+            continue
+        if handle:
+            seen_handles.add(handle)
+        name = _extract_name_from_list_item(item)
+        if name:
+            raw_names.append(name)
     return _normalize_names(raw_names)
+
+
+def _fetch_names_from_dump_sessions(log: Callable[[str], None] | None = None) -> list[str]:
+    """通过 pyweixin Messages.dump_sessions 再兜底读取会话名称。"""
+    from pyweixin.WeChatAuto import Messages
+
+    sessions = Messages.dump_sessions(chat_only=False, is_maximize=False, close_weixin=False)
+    raw_session_names = [str(item[0]).strip() for item in sessions if isinstance(item, tuple) and len(item) >= 1]
+    names = _normalize_names(raw_session_names)
+    if log is not None:
+        log(f"dump_sessions 返回 {len(names)} 个有效名称")
+    return names
 
 
 def fetch_friend_names(
@@ -182,7 +256,7 @@ def fetch_friend_names(
         emit(traceback.format_exc())
 
     try:
-        names = _fetch_names_from_session_items()
+        names = _fetch_names_from_session_items(log=emit)
         if names:
             _save_friend_name_cache(names, wxid=wxid_key)
             emit(f"已从会话ListItem加载好友 {len(names)} 人")
@@ -192,11 +266,7 @@ def fetch_friend_names(
         emit(f"会话ListItem获取失败，尝试dump_sessions: {exc}")
         emit(traceback.format_exc())
 
-    from pyweixin.WeChatAuto import Messages
-
-    sessions = Messages.dump_sessions(chat_only=False, is_maximize=False, close_weixin=False)
-    raw_session_names = [str(item[0]).strip() for item in sessions if isinstance(item, tuple) and len(item) >= 1]
-    names = _normalize_names(raw_session_names)
+    names = _fetch_names_from_dump_sessions(log=emit)
     if not names:
         # 刷新失败时尽量回退旧缓存，避免界面无列表可用。
         cached_names = _load_friend_name_cache(wxid=wxid_key)
@@ -246,26 +316,32 @@ def fetch_friend_profiles(
         emit(traceback.format_exc())
 
     try:
-        names = _fetch_names_from_session_items()
+        names = _fetch_names_from_session_items(log=emit)
         if names:
-            profiles: list[FriendProfile] = [
-                {"display_name": name, "remark": name, "nickname": "", "wechat_id": ""}
-                for name in names
-            ]
+            profiles = _profiles_from_names(names)
             _save_friend_name_cache(names, wxid=wxid_key)
             emit(f"已从会话ListItem加载好友 {len(names)} 人（无微信号）")
             return profiles
+        emit("会话ListItem解析为空，尝试dump_sessions")
     except Exception as exc:
-        emit(f"会话ListItem获取失败: {exc}")
+        emit(f"会话ListItem获取失败，尝试dump_sessions: {exc}")
+        emit(traceback.format_exc())
+
+    try:
+        names = _fetch_names_from_dump_sessions(log=emit)
+        if names:
+            _save_friend_name_cache(names, wxid=wxid_key)
+            emit(f"已从dump_sessions加载好友 {len(names)} 人（无微信号）")
+            return _profiles_from_names(names)
+        emit("dump_sessions解析为空，尝试本地缓存")
+    except Exception as exc:
+        emit(f"dump_sessions获取失败，尝试本地缓存: {exc}")
         emit(traceback.format_exc())
 
     cached_names = _load_friend_name_cache(wxid=wxid_key)
     if cached_names:
         emit(f"实时详情加载失败，回退到本地缓存好友 {len(cached_names)} 人（无微信号）")
-        return [
-            {"display_name": name, "remark": name, "nickname": "", "wechat_id": ""}
-            for name in cached_names
-        ]
+        return _profiles_from_names(cached_names)
     raise RuntimeError("通讯录详情与会话回退均未获取到好友信息")
 
 

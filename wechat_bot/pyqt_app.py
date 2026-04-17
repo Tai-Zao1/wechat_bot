@@ -706,7 +706,7 @@ class MainWindow(QMainWindow):
 
         self.desktop_dir = Path.home() / "Desktop"
         self.app_root_dir = get_bot_app_root()
-        source_text = DEFAULT_ADD_FRIEND_SOURCE_TEXT if self.run_mode == "api" else "本地模式不使用后端批量加好友接口"
+        source_text = DEFAULT_ADD_FRIEND_SOURCE_TEXT if self.run_mode == "api" else "本地模式可上传Excel手机号添加；API获取添加需切换API模式"
         self.add_friend_source_input = QLineEdit(source_text)
         self.add_friend_source_input.setReadOnly(True)
         self.greetings_input = QLineEdit("")
@@ -746,7 +746,7 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         if self.run_mode == "local":
-            self.start_add_btn.setEnabled(False)
+            self.start_add_api_btn.setEnabled(False)
             self.stop_add_btn.setEnabled(False)
         self._apply_style()
         self._init_side_menu_icons()
@@ -853,7 +853,7 @@ class MainWindow(QMainWindow):
         self.nav_list.setObjectName("sideMenu")
         self.nav_list.setMinimumWidth(110)
         self.nav_list.setMaximumWidth(150)
-        self.nav_list.addItems(["微信控制与自动回复", "好友定时群发", "接口批量加好友"])
+        self.nav_list.addItems(["微信控制与自动回复", "好友定时群发", "批量加好友"])
         menu_layout.addWidget(menu_title)
         menu_layout.addWidget(self.nav_list, 1)
         root_layout.addWidget(menu_widget, 0)
@@ -935,7 +935,7 @@ class MainWindow(QMainWindow):
         page_timed_layout.addStretch(1)
         self.content_stack.addWidget(page_timed)
 
-        add_group = QGroupBox("接口批量添加好友")
+        add_group = QGroupBox("批量添加好友")
         add_layout = QGridLayout(add_group)
         add_layout.setHorizontalSpacing(8)
         add_layout.setVerticalSpacing(6)
@@ -950,14 +950,17 @@ class MainWindow(QMainWindow):
         add_layout.addWidget(QLabel("最大间隔(分钟)"), 2, 2)
         add_layout.addWidget(self.interval_max_input, 2, 3)
 
-        self.start_add_btn = QPushButton("执行批量添加")
-        self.start_add_btn.clicked.connect(self.run_add_friends)
+        self.start_add_excel_btn = QPushButton("上传Excel添加")
+        self.start_add_excel_btn.clicked.connect(self.run_add_friends_from_excel)
+        self.start_add_api_btn = QPushButton("API获取添加")
+        self.start_add_api_btn.clicked.connect(self.run_add_friends_from_api)
         self.stop_add_btn = QPushButton("停止批量添加")
         self.stop_add_btn.clicked.connect(self.stop_add_friends)
         self.stop_add_btn.setEnabled(False)
         add_btn_row = QHBoxLayout()
         add_btn_row.setSpacing(8)
-        add_btn_row.addWidget(self.start_add_btn)
+        add_btn_row.addWidget(self.start_add_excel_btn)
+        add_btn_row.addWidget(self.start_add_api_btn)
         add_btn_row.addWidget(self.stop_add_btn)
         add_layout.addLayout(add_btn_row, 3, 0, 1, 4)
         page_add = QWidget()
@@ -987,7 +990,8 @@ class MainWindow(QMainWindow):
             self.uncheck_all_friends_btn,
             self.start_timed_send_btn,
             self.stop_timed_send_btn,
-            self.start_add_btn,
+            self.start_add_excel_btn,
+            self.start_add_api_btn,
             self.stop_add_btn,
         ):
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -2050,25 +2054,18 @@ class MainWindow(QMainWindow):
             self.auto_process.kill()
             self.auto_process.waitForFinished(2000)
 
-    def run_add_friends(self) -> None:
-        self._refresh_log_file_by_wxid()
-        if self.run_mode == "local":
-            QMessageBox.information(self, "本地模式", "本地模式不调用后端批量加好友接口。")
-            return
-        if self.add_friend_process is not None and self.add_friend_process.state() != QProcess.NotRunning:
-            QMessageBox.information(self, "提示", "批量添加好友已在运行。")
-            return
-
+    def _parse_add_friend_interval_seconds(self) -> tuple[int, int] | None:
+        """读取批量加好友间隔参数，返回秒。"""
         try:
             interval_min_minutes = float(
                 self.interval_min_input.text().strip() or str(DEFAULT_ADD_FRIEND_INTERVAL_MIN_MINUTES)
             )
             interval_max_minutes = float(
-                self.interval_max_input.text().strip() or str(DEFAULT_ADD_FRIEND_INTERVAL_MAX_MIN_MINUTES)
+                self.interval_max_input.text().strip() or str(DEFAULT_ADD_FRIEND_INTERVAL_MAX_MINUTES)
             )
         except ValueError:
             QMessageBox.warning(self, "参数错误", "间隔时间请输入数字（单位：分钟）。")
-            return
+            return None
 
         if interval_min_minutes < MIN_ADD_FRIEND_INTERVAL_MINUTES:
             QMessageBox.warning(
@@ -2076,15 +2073,74 @@ class MainWindow(QMainWindow):
                 "参数错误",
                 f"最小间隔不能小于 {int(MIN_ADD_FRIEND_INTERVAL_MINUTES)} 分钟。",
             )
-            return
+            return None
         if interval_max_minutes < interval_min_minutes:
             QMessageBox.warning(self, "参数错误", "最大间隔不能小于最小间隔。")
+            return None
+
+        return int(interval_min_minutes * 60), int(interval_max_minutes * 60)
+
+    def _start_add_friend_process(self, args: list[str], log_text: str) -> None:
+        """启动批量加好友子进程并维护按钮状态。"""
+        self.append_log(log_text)
+        process = self._start_process("add_friend_by_phone.py", args, keep_ref=False)
+        if process is not None:
+            self.add_friend_process = process
+            self.start_add_excel_btn.setEnabled(False)
+            self.start_add_api_btn.setEnabled(False)
+            self.stop_add_btn.setEnabled(True)
+            process.finished.connect(self._on_add_friends_finished)
+
+    def run_add_friends_from_excel(self) -> None:
+        self._refresh_log_file_by_wxid()
+        if self.add_friend_process is not None and self.add_friend_process.state() != QProcess.NotRunning:
+            QMessageBox.information(self, "提示", "批量添加好友已在运行。")
             return
 
-        interval_min_seconds = int(interval_min_minutes * 60)
-        interval_max_seconds = int(interval_max_minutes * 60)
+        selected, _filter = QFileDialog.getOpenFileName(
+            self,
+            "选择手机号Excel",
+            str(self.desktop_dir),
+            "Excel 文件 (*.xlsx *.xlsm);;所有文件 (*)",
+        )
+        if not selected:
+            return
+        interval = self._parse_add_friend_interval_seconds()
+        if interval is None:
+            return
+        interval_min_seconds, interval_max_seconds = interval
 
         args = [
+            "--source",
+            "excel",
+            "--excel-path",
+            selected,
+            "--interval-min",
+            str(interval_min_seconds),
+            "--interval-max",
+            str(interval_max_seconds),
+        ]
+        greetings = self.greetings_input.text().strip()
+        if greetings:
+            args.extend(["--greetings", greetings])
+        self._start_add_friend_process(args, f"批量添加将从Excel读取手机号: {selected}")
+
+    def run_add_friends_from_api(self) -> None:
+        self._refresh_log_file_by_wxid()
+        if self.run_mode == "local":
+            QMessageBox.information(self, "本地模式", "本地模式不调用后端批量加好友接口，请使用“上传Excel添加”。")
+            return
+        if self.add_friend_process is not None and self.add_friend_process.state() != QProcess.NotRunning:
+            QMessageBox.information(self, "提示", "批量添加好友已在运行。")
+            return
+        interval = self._parse_add_friend_interval_seconds()
+        if interval is None:
+            return
+        interval_min_seconds, interval_max_seconds = interval
+
+        args = [
+            "--source",
+            "api",
             "--loop",
             "--interval-min",
             str(interval_min_seconds),
@@ -2097,16 +2153,11 @@ class MainWindow(QMainWindow):
         greetings = self.greetings_input.text().strip()
         if greetings:
             args.extend(["--greetings", greetings])
-        self.append_log("批量添加将通过接口实时获取待加手机号")
-        process = self._start_process("add_friend_by_phone.py", args, keep_ref=False)
-        if process is not None:
-            self.add_friend_process = process
-            self.start_add_btn.setEnabled(False)
-            self.stop_add_btn.setEnabled(True)
-            process.finished.connect(self._on_add_friends_finished)
+        self._start_add_friend_process(args, "批量添加将通过接口实时获取待加手机号")
 
     def _on_add_friends_finished(self, _code: int, _status: QProcess.ExitStatus) -> None:
-        self.start_add_btn.setEnabled(True)
+        self.start_add_excel_btn.setEnabled(True)
+        self.start_add_api_btn.setEnabled(self.run_mode == "api")
         self.stop_add_btn.setEnabled(False)
         self.add_friend_process = None
 
