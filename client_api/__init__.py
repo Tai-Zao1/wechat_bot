@@ -1,4 +1,12 @@
-"""客户端 API 导出。"""
+"""后端接口客户端入口。
+
+这个包只负责与后端服务通信，不处理微信 UI 自动化。
+
+新手阅读建议：
+
+- 先看 `WeChatAIClient`
+- 再看 `client.py` 里的登录、聊天、好友同步几个方法
+"""
 
 from .client import (
     DEFAULT_BASE_URL,

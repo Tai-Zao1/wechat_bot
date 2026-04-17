@@ -4,6 +4,40 @@
 
 本仓库适用于 Windows 环境下的微信自动化开发、自动回复、好友添加、好友资料同步、消息监听、文件/朋友圈等 UI 自动化流程。
 
+## 如果你第一次看这个仓库
+
+先不用从几千行的自动化代码开始翻。按这个顺序看最省时间：
+
+1. `README.md`
+   先知道项目分几层、入口在哪、支持什么环境。
+2. `wechat_bot/pyqt_app.py`
+   这是 GUI 主入口，大部分功能都是从这里触发的。
+3. `wechat_bot/friend_messaging_service.py`
+   这是好友列表、头像同步、定时群发的业务层。
+4. `wechat_bot/auto_reply_unread.py`
+   这是自动回复主流程。
+5. `client_api/client.py`
+   如果你接后端接口，这里是唯一需要重点看的 API 客户端。
+6. `pyweixin/WeChatTools.py` + `pyweixin/WeChatAuto.py`
+   如果你要改底层 UI 自动化，再进入这里。
+
+## 三层结构
+
+这个项目可以简单理解为三层：
+
+- `wechat_bot/`
+  面向使用者的业务层。GUI、自动回复、批量加好友、好友同步都在这里。
+- `client_api/`
+  面向后端接口的网络层。只负责登录、聊天接口、好友同步、在线检测等 HTTP 请求。
+- `pyweixin/`
+  面向 PC 微信 4.1.8 的 UI 自动化底层。只负责“怎么点微信、怎么找控件、怎么拿数据”。
+
+这样看代码时，不容易混：
+
+- 想改界面、运行流程、业务规则，看 `wechat_bot/`
+- 想改接口地址、鉴权、请求参数，看 `client_api/`
+- 想修 UIA 控件定位、聊天窗口、通讯录、头像抓取，看 `pyweixin/`
+
 ## 重要声明
 
 请勿将本项目用于任何非法商业活动、侵犯隐私、骚扰、欺诈、批量营销、绕过平台规则或其他违法违规用途。因此造成的一切后果由使用者自行承担。
@@ -29,22 +63,27 @@ https://github.com/Hello-Mr-Crab/pywechat/
 
 ```text
 .
-├── client_api/              # 后端接口客户端，含登录、聊天、好友同步、checkOnline 等封装
-├── wechat_bot/              # GUI 与业务自动化脚本
-│   ├── pyqt_app.py          # PyQt 控制台入口
-│   ├── auto_reply_unread.py # 未读消息监听与自动回复
-│   ├── add_friend_by_phone.py
-│   ├── open_wechat_window.py
-│   └── ...
-├── pyweixin/                # WeChat 4.1.8 自动化模块
-├── pywechat/                # 原项目保留模块，当前不作为支持入口
-├── inspcet/                 # Windows UI Inspect 工具
+├── wechat_bot/              # 业务层：GUI、自动回复、批量加好友、好友同步
+│   ├── pyqt_app.py          # GUI 主入口
+│   ├── auto_reply_unread.py # 自动回复主流程
+│   ├── friend_messaging_service.py # 好友列表、头像同步、定时群发
+│   ├── add_friend_by_phone.py # 批量加好友
+│   ├── local_bailian.py     # 本地阿里百炼调用
+│   ├── common/              # 默认值、JSON存储、自动回复公共逻辑
+│   └── core/                # 路径、类型、全局配置
+├── client_api/              # 网络层：后端接口客户端
+│   └── client.py            # 登录、聊天、好友同步等 HTTP 封装
+├── pyweixin/                # 底层自动化：PC 微信 4.1.8 UI 自动化
+│   ├── WeChatTools.py       # 导航、窗口、基础定位
+│   ├── WeChatAuto.py        # 消息、通讯录、文件、朋友圈等能力
+│   └── Uielements.py        # UI 控件定位参数
+├── pywechat/                # 原项目保留目录，当前不作为支持入口
 ├── installer/               # NSIS 安装包配置
 ├── scripts/                 # 打包脚本
 ├── pics/                    # 文档图片资源
+├── inspcet/                 # Windows UI Inspect 工具
 ├── .env.example             # 环境变量模板
-├── pywechat_bot_gui.spec    # PyInstaller 固定打包配置
-└── requirements*.txt        # 运行与 GUI 依赖
+└── pywechat_bot_gui.spec    # PyInstaller 固定打包配置
 ```
 
 注意：不要再使用气泡左右几何位置判断是否为己方消息。微信 4.1.8 的 UI 结构下该方式不稳定，容易误判。
@@ -84,6 +123,29 @@ python -c "from pyweixin import Navigator"
 ```
 
 说明：当前支持入口为 `wechat_bot` 与 `pyweixin`，仅按 PC 微信 4.1.8 验证。
+
+## 常见改动去哪里
+
+如果你是二次开发，通常按下面找文件就够了：
+
+- 改 GUI 按钮、页面、日志展示：`wechat_bot/pyqt_app.py`
+- 改自动回复逻辑、聊天模式、短链规则：`wechat_bot/auto_reply_unread.py`
+- 改好友列表加载、头像同步、定时群发：`wechat_bot/friend_messaging_service.py`
+- 改批量加好友、Excel 导入、API 拉号：`wechat_bot/add_friend_by_phone.py`
+- 改后端接口、登录、token、请求参数：`client_api/client.py`
+- 改微信窗口定位、通讯录、聊天窗口、会话列表：`pyweixin/WeChatTools.py`
+- 改消息、通讯录、文件、朋友圈等底层自动化能力：`pyweixin/WeChatAuto.py`
+- 改控件定位参数：`pyweixin/Uielements.py`
+
+## 运行流转
+
+核心链路可以这样理解：
+
+1. GUI 从 `wechat_bot/pyqt_app.py` 启动。
+2. GUI 根据按钮动作启动对应业务脚本。
+3. 业务脚本按需要调用：
+   `client_api/` 访问后端接口，或调用 `pyweixin/` 操作 PC 微信。
+4. 公共配置、路径、类型由 `wechat_bot/common/` 和 `wechat_bot/core/` 提供。
 
 ## 接口配置
 
