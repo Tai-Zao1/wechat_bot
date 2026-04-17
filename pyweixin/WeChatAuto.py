@@ -520,15 +520,8 @@ class Contacts():
                 return None, None
             wx_number = info.get('微信号', '无')
             unique_key = wx_number if wx_number and wx_number != '无' else f'friend:{display_name}'
-            buttons = contact_profile.descendants(control_type='Button')
-            if not buttons:
-                return unique_key, None
-            avatar_button = min(buttons, key=lambda btn: (btn.rectangle().top, btn.rectangle().left))
-            rect = avatar_button.rectangle()
-            left = max(rect.left, 0)
-            top = max(rect.top, 0)
-            width = max(rect.width(), 1)
-            height = max(rect.height(), 1)
+            candidate_names = [info.get('备注', ''), info.get('昵称', ''), display_name]
+            left, top, width, height = Contacts._resolve_avatar_capture_region(contact_profile, candidate_names)
             image = pyautogui.screenshot(region=(left, top, width, height))
             img_buf = BytesIO()
             image.save(img_buf, format='PNG')
@@ -1155,6 +1148,58 @@ class Contacts():
             json.dump(index_data, f, ensure_ascii=False, indent=2)
 
     @staticmethod
+    def _resolve_avatar_capture_region(profile_pane, candidate_names: list[str] | None = None) -> tuple[int, int, int, int]:
+        '''在 4.1.8 资料面板中尽量稳定地定位头像截图区域。'''
+        candidate_names = [
+            name.strip() for name in (candidate_names or [])
+            if isinstance(name, str) and name.strip() and name.strip() != '无'
+        ]
+        pane_rect = profile_pane.rectangle()
+        preferred_controls = []
+        fallback_controls = []
+        for control_type in ('Button', 'Image', 'Custom', 'Pane'):
+            try:
+                nodes = profile_pane.descendants(control_type=control_type)
+            except Exception:
+                nodes = []
+            for node in nodes:
+                try:
+                    rect = node.rectangle()
+                    text = str(node.window_text() or '').strip()
+                except Exception:
+                    continue
+                width = max(rect.width(), 0)
+                height = max(rect.height(), 0)
+                if width < 24 or height < 24 or width > 220 or height > 220:
+                    continue
+                if rect.left > pane_rect.left + 220 or rect.top > pane_rect.top + 220:
+                    continue
+                score = (rect.top - pane_rect.top, rect.left - pane_rect.left, abs(width - height), width * height)
+                item = (score, rect)
+                if text and text in candidate_names:
+                    preferred_controls.append(item)
+                else:
+                    fallback_controls.append(item)
+
+        if preferred_controls:
+            rect = min(preferred_controls, key=lambda item: item[0])[1]
+        elif fallback_controls:
+            rect = min(fallback_controls, key=lambda item: item[0])[1]
+        else:
+            pane_width = max(pane_rect.width(), 1)
+            pane_height = max(pane_rect.height(), 1)
+            size = max(40, min(96, min(pane_width // 4, pane_height // 5)))
+            left = pane_rect.left + 12
+            top = pane_rect.top + 12
+            return left, top, size, size
+
+        left = max(rect.left, 0)
+        top = max(rect.top, 0)
+        width = max(rect.width(), 1)
+        height = max(rect.height(), 1)
+        return left, top, width, height
+
+    @staticmethod
     def save_friend_avatar(friend: str, target_folder: str = None, search_pages: int = None, is_maximize: bool = None,
                            close_weixin: bool = None, overwrite: bool = True) -> dict:
         '''
@@ -1195,22 +1240,7 @@ class Contacts():
 
             candidate_names = [name for name in [remark, nickname, friend] if
                                isinstance(name, str) and name and name != '无']
-            avatar_button = None
-            for button in profile_pane.descendants(control_type='Button'):
-                if button.window_text() in candidate_names:
-                    avatar_button = button
-                    break
-            if avatar_button is None:
-                buttons = profile_pane.descendants(control_type='Button')
-                if not buttons:
-                    raise RuntimeError('未找到头像按钮，无法保存头像')
-                avatar_button = min(buttons, key=lambda btn: (btn.rectangle().top, btn.rectangle().left))
-
-            rect = avatar_button.rectangle()
-            left = max(rect.left, 0)
-            top = max(rect.top, 0)
-            width = max(rect.width(), 1)
-            height = max(rect.height(), 1)
+            left, top, width, height = Contacts._resolve_avatar_capture_region(profile_pane, candidate_names)
             avatar_image = pyautogui.screenshot(region=(left, top, width, height))
             img_bytes = BytesIO()
             avatar_image.save(img_bytes, format='PNG')

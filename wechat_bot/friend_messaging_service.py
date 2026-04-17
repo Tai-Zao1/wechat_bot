@@ -308,8 +308,10 @@ def fetch_friend_profiles(
         )
         profiles = _normalize_friend_profiles(details if isinstance(details, list) else [])
         if profiles:
+            avatar_count = sum(1 for item in profiles if str(item.get("avatar_path", "")).strip())
             _save_friend_name_cache([item["display_name"] for item in profiles], wxid=wxid_key)
             emit(f"好友详情与头像已同步到: {avatar_dir} (wxid={wxid_key})")
+            emit(f"好友详情解析: 共 {len(profiles)} 人，带头像路径 {avatar_count} 人")
             return profiles
         emit("pyweixin通讯录详情为空，回退会话列表")
     except Exception as exc:

@@ -1469,6 +1469,7 @@ class MainWindow(QMainWindow):
         self.friend_list_widget.clear()
         self.friend_profiles = []
         avatar_map = self._load_saved_friend_avatar_map()
+        self.append_log(f"头像索引加载: 命中 {len(avatar_map)} 条可用映射")
         avatar_hit_count = 0
         avatar_miss_count = 0
         for record in profiles:
