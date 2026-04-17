@@ -1469,6 +1469,8 @@ class MainWindow(QMainWindow):
         self.friend_list_widget.clear()
         self.friend_profiles = []
         avatar_map = self._load_saved_friend_avatar_map()
+        avatar_hit_count = 0
+        avatar_miss_count = 0
         for record in profiles:
             if isinstance(record, dict):
                 display_name = str(record.get("display_name") or "").strip()
@@ -1496,13 +1498,18 @@ class MainWindow(QMainWindow):
                 continue
             self.friend_profiles.append(normalized)
             item = QListWidgetItem(display_name)
-            avatar_path = normalized.get("avatar_path") or avatar_map.get(display_name)
+            avatar_path = self._resolve_friend_avatar_path(normalized, avatar_map)
+            if avatar_path:
+                avatar_hit_count += 1
+            else:
+                avatar_miss_count += 1
             item.setIcon(self._build_friend_avatar_icon(display_name, avatar_path=avatar_path))
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Unchecked)
             item.setData(Qt.UserRole, normalized)
             self.friend_list_widget.addItem(item)
         self.append_log(f"好友列表加载完成，共 {len(self.friend_profiles)} 人")
+        self.append_log(f"好友头像加载: 成功 {avatar_hit_count} 人，未匹配 {avatar_miss_count} 人")
         self._sync_friend_profiles_to_backend()
 
     def _sync_friend_profiles_to_backend(self) -> None:
@@ -1573,15 +1580,32 @@ class MainWindow(QMainWindow):
             avatar_path = Path(path_text)
             if not avatar_path.is_file():
                 continue
-            for key in ("remark", "nickname", "friend_input"):
+            for key in ("remark", "nickname", "friend_input", "wechat_id", "unique_key"):
                 name = str(record.get(key, "")).strip()
-                if name and name not in avatar_map:
+                if name and name != "无" and name not in avatar_map:
                     avatar_map[name] = str(avatar_path)
         return avatar_map
 
+    def _resolve_friend_avatar_path(self, profile: dict[str, str], avatar_map: dict[str, str]) -> str:
+        """从详情路径或头像索引中解析可用头像文件。"""
+        candidates = [
+            str(profile.get("avatar_path", "")).strip(),
+            avatar_map.get(str(profile.get("display_name", "")).strip(), ""),
+            avatar_map.get(str(profile.get("remark", "")).strip(), ""),
+            avatar_map.get(str(profile.get("nickname", "")).strip(), ""),
+            avatar_map.get(str(profile.get("wechat_id", "")).strip(), ""),
+        ]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(candidate)
+            if path.is_file():
+                return str(path)
+        return ""
+
     def _build_friend_avatar_icon(self, name: str, size: int = 28, avatar_path: str | None = None) -> QIcon:
         if avatar_path:
-            pix = QPixmap(avatar_path)
+            pix = QPixmap(str(Path(avatar_path)))
             if not pix.isNull():
                 return QIcon(pix.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
         clean_name = (name or "").strip()
