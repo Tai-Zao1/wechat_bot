@@ -975,10 +975,45 @@ class Navigator():
         main_window=Navigator.open_weixin(is_maximize=is_maximize)
         contacts=main_window.child_window(**SideBar.Contacts)
         contacts.click_input()
-        #类型是自定义的控件,必须先定位到该控件才可以继续定位通讯录列表
-        #直接main_window.child_window()定位不到
-        custom=main_window.descendants(control_type='Custom')
-        contact_list=custom[-1].children()[1].descendants(control_type='List')[0]
+        time.sleep(0.3)
+
+        # WeChat 4.1.8 的通讯录列表可以直接通过 automation id 定位。
+        # 旧逻辑依赖 Custom 控件层级 custom[-1].children()[1]，窗口布局变化时会越界。
+        contact_list = None
+        candidates = [
+            {"auto_id": "primary_table_.contact_list", "control_type": "List"},
+            Main_window.ContactsList,
+            {"title": "通讯录", "control_type": "List", "class_name": "mmui::StickyHeaderRecyclerListView"},
+        ]
+        for criteria in candidates:
+            try:
+                candidate = main_window.child_window(**criteria)
+                if candidate.exists(timeout=1):
+                    contact_list = candidate
+                    break
+            except Exception:
+                pass
+
+        if contact_list is None:
+            try:
+                lists = main_window.descendants(control_type="List")
+            except Exception:
+                lists = []
+            for candidate in lists:
+                try:
+                    title = str(candidate.window_text() or "").strip()
+                    class_name = str(candidate.class_name() or "").strip()
+                    auto_id = str(candidate.automation_id() or "").strip()
+                except Exception:
+                    continue
+                if auto_id == "primary_table_.contact_list" or (
+                    title == "通讯录" and class_name == "mmui::StickyHeaderRecyclerListView"
+                ):
+                    contact_list = candidate
+                    break
+
+        if contact_list is None:
+            raise NotFoundError("未找到通讯录列表控件 primary_table_.contact_list")
         contact_list.type_keys("{HOME}")
         return contact_list,main_window
 

@@ -93,6 +93,7 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
         remark = str(item.get("备注", "")).strip()
         nickname = str(item.get("昵称", "")).strip()
         wechat_number = str(item.get("微信号", "")).strip()
+        avatar_path = str(item.get("头像路径", "")).strip()
         display_name = remark if remark and remark != "无" else nickname
         if not display_name:
             display_name = wechat_number
@@ -109,6 +110,7 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
                 "remark": "" if remark == "无" else remark,
                 "nickname": "" if nickname == "无" else nickname,
                 "wechat_id": wechat_number,
+                "avatar_path": avatar_path,
             }
         )
     profiles.sort(key=lambda item: item.get("display_name", ""))
@@ -118,7 +120,7 @@ def _normalize_friend_profiles(raw_profiles: list[dict[str, Any]]) -> list[Frien
 def _profiles_from_names(names: list[str]) -> list[FriendProfile]:
     """把只有展示名的好友列表转换为统一资料结构。"""
     return [
-        {"display_name": name, "remark": name, "nickname": "", "wechat_id": ""}
+        {"display_name": name, "remark": name, "nickname": "", "wechat_id": "", "avatar_path": ""}
         for name in names
     ]
 
@@ -252,8 +254,7 @@ def fetch_friend_names(
             return names
         emit("pyweixin通讯录解析为空，回退会话列表")
     except Exception as exc:
-        emit(f"pyweixin通讯录获取失败，回退会话列表: {exc}")
-        emit(traceback.format_exc())
+        emit(f"pyweixin通讯录获取失败，已自动回退会话列表: {exc}")
 
     try:
         names = _fetch_names_from_session_items(log=emit)
@@ -312,8 +313,7 @@ def fetch_friend_profiles(
             return profiles
         emit("pyweixin通讯录详情为空，回退会话列表")
     except Exception as exc:
-        emit(f"pyweixin通讯录详情获取失败，回退会话列表: {exc}")
-        emit(traceback.format_exc())
+        emit(f"pyweixin通讯录详情获取失败，已自动回退会话列表: {exc}")
 
     try:
         names = _fetch_names_from_session_items(log=emit)

@@ -10,6 +10,7 @@ class FriendProfile(TypedDict):
     remark: str
     nickname: str
     wechat_id: str
+    avatar_path: str
 
 
 class SelfProfile(TypedDict):

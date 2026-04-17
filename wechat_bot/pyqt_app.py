@@ -1475,11 +1475,13 @@ class MainWindow(QMainWindow):
                 remark = str(record.get("remark") or "").strip()
                 nickname = str(record.get("nickname") or "").strip()
                 wechat_id = str(record.get("wechat_id") or "").strip()
+                avatar_path = str(record.get("avatar_path") or "").strip()
                 normalized = {
                     "display_name": display_name,
                     "remark": remark,
                     "nickname": nickname,
                     "wechat_id": wechat_id,
+                    "avatar_path": avatar_path,
                 }
             else:
                 display_name = str(record).strip()
@@ -1488,12 +1490,14 @@ class MainWindow(QMainWindow):
                     "remark": display_name,
                     "nickname": "",
                     "wechat_id": "",
+                    "avatar_path": "",
                 }
             if not display_name:
                 continue
             self.friend_profiles.append(normalized)
             item = QListWidgetItem(display_name)
-            item.setIcon(self._build_friend_avatar_icon(display_name, avatar_path=avatar_map.get(display_name)))
+            avatar_path = normalized.get("avatar_path") or avatar_map.get(display_name)
+            item.setIcon(self._build_friend_avatar_icon(display_name, avatar_path=avatar_path))
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Unchecked)
             item.setData(Qt.UserRole, normalized)
