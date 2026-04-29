@@ -16,7 +16,8 @@ import time
 import traceback
 import uuid
 from datetime import datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 try:
     from .bootstrap import ensure_repo_root_for_scripts
@@ -122,7 +123,13 @@ def log(key: str, value: object) -> None:
         # 打包后的子进程在部分 Windows 机器上 stdout 仍可能是 gbk，emoji 会触发编码异常。
         enc = getattr(sys.stdout, "encoding", None) or "utf-8"
         safe = msg.encode(enc, errors="replace").decode(enc, errors="replace")
-        print(safe, flush=True)
+        try:
+            print(safe, flush=True)
+        except OSError:
+            pass
+    except OSError:
+        # Win11 部分环境下 stdout 句柄无效或编码参数非法（errno 22）
+        pass
 
 
 def resolve_cache_file() -> Path:

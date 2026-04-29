@@ -428,6 +428,9 @@ class Contacts():
         coords = (rec.right - 60, rec.bottom - 35)
         mouse.click(coords=coords)
         profile_pane = desktop.window(**Windows.PopUpProfileWindow)
+        profile_pane.wait('exists enabled visible ready', timeout=5)
+        # 弹窗生成后重新取一次根节点，避免拿到点击前缓存的 UIA 包装对象
+        profile_pane = desktop.window(**Windows.PopUpProfileWindow)
         group = profile_pane.child_window(control_type='Group', found_index=3).children()[1]
         texts = group.descendants(control_type='Text')
         texts = [item.window_text() for item in texts]

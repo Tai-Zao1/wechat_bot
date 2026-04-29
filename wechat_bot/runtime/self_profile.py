@@ -72,7 +72,7 @@ def fetch_self_profile(log: Callable[[str], None] | None = None) -> SelfProfile:
     def _find_text_by_auto_id(auto_id: str, class_name: str = "", timeout_s: float = 2.5) -> str:
         deadline = time.time() + timeout_s
         while time.time() < deadline:
-            for parent in (moments_window, desktop):
+            for parent in (profile_pane, moments_window, desktop):
                 try:
                     nodes = parent.descendants(control_type="Text")
                 except Exception:
@@ -109,6 +109,24 @@ def fetch_self_profile(log: Callable[[str], None] | None = None) -> SelfProfile:
         mouse.click(coords=(rec.right - 60, rec.bottom - 35))
         time.sleep(0.4)
         desktop = Desktop(backend="uia")
+        try:
+            profile_pane = desktop.window(
+                title="Weixin",
+                control_type="Window",
+                class_name="mmui::ProfileUniquePop",
+            )
+            if profile_pane.exists(timeout=0.5):
+                profile_pane.wait("exists enabled visible ready", timeout=1.5)
+                # 弹窗生成后重新取一次根节点，避免复用旧 UIA 节点
+                profile_pane = desktop.window(
+                    title="Weixin",
+                    control_type="Window",
+                    class_name="mmui::ProfileUniquePop",
+                )
+            else:
+                profile_pane = None
+        except Exception:
+            profile_pane = None
 
         nickname = _find_text_by_auto_id(
             "right_v_view.nickname_button_view.display_name_text",
@@ -124,7 +142,7 @@ def fetch_self_profile(log: Callable[[str], None] | None = None) -> SelfProfile:
         )
         if not wechat_id:
             texts: list[str] = []
-            for parent in (moments_window, desktop):
+            for parent in (profile_pane, moments_window, desktop):
                 try:
                     nodes = parent.descendants(control_type="Text")
                 except Exception:
